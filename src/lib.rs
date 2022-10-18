@@ -145,7 +145,8 @@ impl<const N_ROWS: usize, const N_COLS: usize, const N_FOODS: usize>
 
                 // Remove the LRU `Entity::Snake`
                 let tail = self.snake.pop_back().expect("non-empty snake");
-                self.entities[tail.0][tail.1] = Entity::Snake;
+                let empty_index = self.empty.len();
+                self.entities[tail.0][tail.1] = Entity::Empty { empty_index };
                 self.empty.push(tail);
             }
             Entity::Food { foods_index } => {
