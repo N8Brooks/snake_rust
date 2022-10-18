@@ -63,6 +63,7 @@ pub struct Gamestate<const N_ROWS: usize, const N_COLS: usize, const N_FOODS: us
 impl<const N_ROWS: usize, const N_COLS: usize, const N_FOODS: usize>
     Gamestate<N_ROWS, N_COLS, N_FOODS>
 {
+    /// Generate a new `Gamestate` given appropriate const generics.
     pub fn new(
         initial_direction: Direction,
         snake_head_location: Location,
