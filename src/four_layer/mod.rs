@@ -15,8 +15,71 @@ pub struct Options {
 }
 
 impl Options {
-    fn is_valid(&self) -> bool {
+    fn is_valid(self) -> bool {
         self.shape.0 > 0 && self.shape.1 > 0 && self.n_foods > 0
+    }
+
+    pub fn build(self) -> GameState {
+        if !self.is_valid() {
+            panic!("invalid options");
+        }
+        let mut game_state = GameState {
+            options: self,
+            status: Status::Ongoing,
+            velocity: Velocity::default(),
+            board: self.get_board(),
+            snake: self.get_snake(),
+            empty: self.get_empty(),
+            foods: self.get_foods(),
+            rng: self.get_rng(),
+        };
+        game_state.add_foods();
+        game_state
+    }
+
+    fn get_head(&self) -> [usize; 2] {
+        let (n_rows, n_cols) = self.shape;
+        [n_rows / 2, n_cols / 2]
+    }
+
+    fn get_board(&self) -> Array2<CellWithMetadata> {
+        let (n_rows, n_cols) = self.shape;
+        let [head_i, head_j] = self.get_head();
+        let head_index = head_i * n_rows + head_j * n_cols;
+        Array2::from_shape_fn(self.shape, |(i, j)| {
+            let index = i * n_rows + j * n_cols;
+            match index.cmp(&head_index) {
+                Ordering::Less => CellWithMetadata::Empty(index),
+                Ordering::Equal => CellWithMetadata::Snake,
+                Ordering::Greater => CellWithMetadata::Empty(index - 1),
+            }
+        })
+    }
+
+    fn get_empty(&self) -> Vec<Position> {
+        self.get_board()
+            .indexed_iter()
+            .filter(|(_, cell)| matches!(cell, CellWithMetadata::Empty(_)))
+            .map(|(index, _)| Position([index.0, index.1]))
+            .collect()
+    }
+
+    fn get_snake(&self) -> VecDeque<Position> {
+        let (n_rows, n_cols) = self.shape;
+        let mut snake = VecDeque::with_capacity(n_rows * n_cols);
+        snake.push_front(Position(self.get_head()));
+        snake
+    }
+
+    fn get_foods(&self) -> Vec<Position> {
+        Vec::with_capacity(self.n_foods)
+    }
+
+    fn get_rng(&self) -> ChaCha8Rng {
+        let seed = self
+            .seed
+            .unwrap_or_else(|| SystemTime::now().elapsed().expect("system time").as_secs());
+        ChaCha8Rng::seed_from_u64(seed)
     }
 }
 
@@ -90,48 +153,6 @@ pub struct GameState {
 }
 
 impl GameState {
-    fn new(options: Options) -> Self {
-        if !options.is_valid() {
-            panic!("invalid options");
-        }
-        let (n_rows, n_cols) = options.shape;
-        let head = [n_rows / 2, n_cols / 2];
-        let head_index = head[0] * n_rows + head[1] * n_cols;
-        let board = Array2::from_shape_fn((n_rows, n_cols), |(i, j)| {
-            let index = i * n_rows + j * n_cols;
-            match index.cmp(&head_index) {
-                Ordering::Less => CellWithMetadata::Empty(index),
-                Ordering::Equal => CellWithMetadata::Snake,
-                Ordering::Greater => CellWithMetadata::Empty(index - 1),
-            }
-        });
-        let empty = board
-            .indexed_iter()
-            .filter(|(_, cell)| matches!(cell, CellWithMetadata::Empty(_)))
-            .map(|(index, _)| Position([index.0, index.1]))
-            .collect();
-        let foods = Vec::with_capacity(options.n_foods);
-        let seed = options
-            .seed
-            .unwrap_or_else(|| SystemTime::now().elapsed().expect("system time").as_secs());
-        let mut game_state = GameState {
-            options,
-            status: Status::Ongoing,
-            velocity: Velocity::default(),
-            board,
-            snake: {
-                let mut snake = VecDeque::with_capacity(n_rows * n_cols);
-                snake.push_front(Position(head));
-                snake
-            },
-            empty,
-            foods,
-            rng: ChaCha8Rng::seed_from_u64(seed),
-        };
-        game_state.add_foods();
-        game_state
-    }
-
     fn handle(&mut self, command: Command) -> Result<(), Error> {
         if matches!(self.status, Status::Over { .. }) {
             return Err(Error::GameIsOver);
