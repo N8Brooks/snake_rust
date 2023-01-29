@@ -8,9 +8,9 @@ use std::time::SystemTime;
 
 #[derive(Clone)]
 pub struct Options {
-    shape: (usize, usize),
-    n_foods: usize,
-    seed: Option<u64>,
+    pub shape: (usize, usize),
+    pub n_foods: usize,
+    pub seed: Option<u64>,
 }
 
 impl Options {
@@ -50,11 +50,11 @@ impl Options {
     }
 
     fn get_board(&self) -> Array2<CellWithMetadata> {
-        let (n_rows, n_cols) = self.shape;
+        let (n_rows, _n_cols) = self.shape;
         let [head_i, head_j] = self.get_head();
-        let head_index = head_i * n_rows + head_j * n_cols;
+        let head_index = head_i * n_rows + head_j;
         Array2::from_shape_fn(self.shape, |(i, j)| {
-            let index = i * n_rows + j * n_cols;
+            let index = i * n_rows + j;
             match index.cmp(&head_index) {
                 Ordering::Less => CellWithMetadata::Empty(index),
                 Ordering::Equal => CellWithMetadata::Snake,
@@ -106,6 +106,7 @@ pub enum Status {
 }
 
 /// A board reference to a cell referred to as `[i, j]`.
+#[derive(Debug, PartialEq)]
 struct Position([usize; 2]);
 
 /// A 1 turn change in a `Position` referred to as `[di, dj]`.
@@ -140,12 +141,14 @@ impl Direction {
     }
 }
 
+#[allow(dead_code)]
 enum Cell {
     Snake,
     Empty,
     Food,
 }
 
+#[derive(Debug, PartialEq)]
 enum CellWithMetadata {
     Snake,
     Empty(usize),
@@ -301,5 +304,76 @@ impl Display for GameState {
 }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use super::*;
 
+    #[cfg(test)]
+    mod options {
+        use super::*;
+
+        const TEST_OPTIONS: Options = Options {
+            shape: (3, 3),
+            n_foods: 1,
+            seed: Some(0),
+        };
+
+        #[test]
+        fn options_is_valid_board_size() {
+            assert_eq!(TEST_OPTIONS.is_valid_board_size(), true);
+        }
+
+        #[test]
+        fn options_get_head() {
+            assert_eq!(TEST_OPTIONS.get_head(), [1, 1]);
+        }
+
+        #[test]
+        fn options_get_board() {
+            let actual = TEST_OPTIONS.get_board();
+            let expected = Array2::from_shape_vec(
+                TEST_OPTIONS.shape,
+                vec![
+                    CellWithMetadata::Empty(0),
+                    CellWithMetadata::Empty(1),
+                    CellWithMetadata::Empty(2),
+                    CellWithMetadata::Empty(3),
+                    CellWithMetadata::Snake,
+                    CellWithMetadata::Empty(4),
+                    CellWithMetadata::Empty(5),
+                    CellWithMetadata::Empty(6),
+                    CellWithMetadata::Empty(7),
+                ],
+            )
+            .unwrap();
+            assert_eq!(actual, expected);
+        }
+
+        #[test]
+        fn options_get_empty() {
+            let actual = TEST_OPTIONS.get_empty();
+            let expected = vec![
+                Position([0, 0]),
+                Position([0, 1]),
+                Position([0, 2]),
+                Position([1, 0]),
+                Position([1, 2]),
+                Position([2, 0]),
+                Position([2, 1]),
+                Position([2, 2]),
+            ];
+            assert_eq!(actual, expected);
+        }
+
+        #[test]
+        fn options_get_snake() {
+            let actual = TEST_OPTIONS.get_snake();
+            let expected = vec![Position(TEST_OPTIONS.get_head())];
+            assert_eq!(actual, expected);
+        }
+
+        #[test]
+        fn options_get_foods() {
+            assert_eq!(TEST_OPTIONS.get_foods(), Vec::new());
+        }
+    }
+}
