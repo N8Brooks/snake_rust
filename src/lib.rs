@@ -76,11 +76,6 @@ impl Display for CellWithMetadata {
     }
 }
 
-pub enum Command {
-    SetDirection(Direction),
-    IterateTurn,
-}
-
 #[derive(Debug)]
 pub struct GameIsOver;
 
@@ -198,7 +193,7 @@ pub struct GameState {
 impl GameState {
     pub fn set_direction(&mut self, direction: Direction) -> Result<(), InvalidDirection> {
         let velocity = direction.as_velocity();
-        if velocity.is_vertical() == self.velocity.is_vertical() {
+        if self.velocity.is_moving() && velocity.is_vertical() == self.velocity.is_vertical() {
             Err(InvalidDirection)
         } else {
             self.velocity = velocity;
@@ -208,47 +203,24 @@ impl GameState {
 
     pub fn iterate_turn(&mut self) -> Result<(), GameIsOver> {
         self.check_status()?;
+
         if !self.velocity.is_moving() {
             return Ok(());
         }
-        let head = self.compute_head();
+
+        let head = self.get_new_snake_head();
         match self.board[head.0] {
             CellWithMetadata::Snake => {
-                self.status = Status::Over {
-                    is_won: self.empty.is_empty() && self.foods.is_empty(),
-                };
+                self.end_game();
                 return Ok(());
             }
             CellWithMetadata::Empty(empty_index) => {
-                // Remove `Entity::Empty` and update `empty_index` for `entities`
-                self.empty.swap_remove(empty_index);
-                if empty_index < self.empty.len() {
-                    let position = &self.empty[empty_index];
-                    self.board[position.0] = CellWithMetadata::Empty(empty_index);
-                }
-
-                // Remove the LRU `Entity::Snake`
-                let tail = self.snake.pop_back().expect("non-empty snake");
-                let empty_index = self.empty.len();
-                self.board[tail.0] = CellWithMetadata::Empty(empty_index);
-                self.empty.push(tail);
+                self.update_for_empty(empty_index);
             }
             CellWithMetadata::Food(foods_index) => {
-                // Remove `Entity::Food` and update `food_index` for `entities`
-                self.foods.swap_remove(foods_index);
-                if foods_index < self.foods.len() {
-                    let position = &self.foods[foods_index];
-                    self.board[position.0] = CellWithMetadata::Food(foods_index);
-                }
-
-                // Replace eaten `Entity::Food`, if there is room
-                let _ = self.add_food();
+                self.update_for_foods(foods_index);
             }
         }
-
-        // Update `entities` with the new `Location`, `head`
-        self.board[head.0] = CellWithMetadata::Snake;
-        self.snake.push_front(head);
 
         Ok(())
     }
@@ -260,9 +232,9 @@ impl GameState {
         }
     }
 
-    fn compute_head(&self) -> Position {
+    fn get_new_snake_head(&self) -> Position {
         let (n_rows, n_cols) = self.options.shape;
-        let Position([i_0, j_0]) = self.snake.front().expect("non-zero length snake");
+        let Position([i_0, j_0]) = self.get_current_snake_head();
         let Velocity([d_i, d_j]) = self.velocity;
         let i_1 = i_0
             .checked_add_signed(d_i)
@@ -275,6 +247,75 @@ impl GameState {
         Position([i_1, j_1])
     }
 
+    fn get_current_snake_head(&self) -> &Position {
+        self.snake.front().expect("non-zero length snake")
+    }
+
+    fn get_current_snake_tail(&mut self) -> Position {
+        self.snake.pop_back().expect("non-empty snake")
+    }
+
+    fn end_game(&mut self) {
+        self.status = Status::Over {
+            is_won: self.is_won(),
+        };
+    }
+
+    fn is_won(&self) -> bool {
+        self.empty.is_empty() && self.foods.is_empty()
+    }
+
+    fn update_for_empty(&mut self, empty_index: usize) {
+        let head = self.get_new_snake_head();
+        self.remove_empty(empty_index);
+        self.pop_snake();
+        self.push_snake(head);
+    }
+
+    /// Remove `CellWithMetadata::Empty` and update `food_index` for `board`
+    fn remove_empty(&mut self, empty_index: usize) -> Position {
+        let position = self.empty.swap_remove(empty_index);
+        if empty_index < self.empty.len() {
+            let position = &self.empty[empty_index];
+            self.board[position.0] = CellWithMetadata::Empty(empty_index);
+        }
+        position
+    }
+
+    /// Remove `CellWithMetadata::Food` and update `food_index` for `board`
+    fn remove_foods(&mut self, foods_index: usize) {
+        self.foods.swap_remove(foods_index);
+        if foods_index < self.foods.len() {
+            let position = &self.foods[foods_index];
+            self.board[position.0] = CellWithMetadata::Food(foods_index);
+        }
+    }
+
+    fn pop_snake(&mut self) {
+        let tail = self.get_current_snake_tail();
+        let empty_index = self.empty.len();
+        self.board[tail.0] = CellWithMetadata::Empty(empty_index);
+        self.empty.push(tail);
+    }
+
+    fn push_snake(&mut self, head: Position) {
+        self.board[head.0] = CellWithMetadata::Snake;
+        self.snake.push_front(head);
+    }
+
+    fn push_foods(&mut self, position: Position) {
+        let foods_index = self.foods.len();
+        self.board[position.0] = CellWithMetadata::Food(foods_index);
+        self.foods.push(position);
+    }
+
+    fn update_for_foods(&mut self, foods_index: usize) {
+        self.remove_foods(foods_index);
+        let _ = self.add_food();
+        let head = self.get_new_snake_head();
+        self.snake.push_front(head);
+    }
+
     fn add_food(&mut self) -> Result<(), FoodCannotBeAdded> {
         if self.foods.len() >= self.options.n_foods {
             panic!("max foods");
@@ -284,21 +325,9 @@ impl GameState {
             return Err(FoodCannotBeAdded);
         }
 
-        // Remove a random instance of `CellWithMetadata::Empty` and get its `Position`
         let empty_index = self.rng.gen_range(0..self.empty.len());
-        let position = self.empty.swap_remove(empty_index);
-
-        // Update `self.board` reference to the `CellWithMetadata::Empty` that was swapped
-        if empty_index < self.empty.len() {
-            let position = &self.empty[empty_index];
-            self.board[position.0] = CellWithMetadata::Empty(empty_index);
-        }
-
-        // Add new instance of `CellWithMetadata::Food`
-        let foods_index = self.foods.len();
-        self.board[position.0] = CellWithMetadata::Food(foods_index);
-        self.foods.push(position);
-
+        let position = self.remove_empty(empty_index);
+        self.push_foods(position);
         Ok(())
     }
 }
@@ -320,158 +349,112 @@ impl Display for GameState {
 }
 
 #[cfg(test)]
-mod tests {
+mod velocity_tests {
     use super::*;
 
-    #[cfg(test)]
-    mod velocity {
-        use super::*;
-
-        #[test]
-        fn is_vertical() {
-            assert!(Velocity([1, 0]).is_vertical());
-        }
-
-        #[test]
-        fn is_not_vertical() {
-            assert!(!Velocity([0, 1]).is_vertical());
-        }
-
-        #[test]
-        fn is_moving() {
-            assert!(Velocity([1, 0]).is_moving());
-        }
-
-        #[test]
-        fn is_not_moving() {
-            assert!(!Velocity([0, 0]).is_moving());
-        }
+    #[test]
+    fn is_vertical() {
+        assert!(Velocity([1, 0]).is_vertical());
     }
 
-    #[cfg(test)]
-    mod direction {
-        use super::*;
-
-        #[test]
-        fn as_velocity_up() {
-            assert_eq!(
-                Direction::Up.as_velocity(),
-                Velocity([-(Velocity::DEFAULT_MAGNITUDE as isize), 0])
-            );
-        }
-
-        #[test]
-        fn as_velocity_right() {
-            assert_eq!(
-                Direction::Right.as_velocity(),
-                Velocity([0, Velocity::DEFAULT_MAGNITUDE as isize])
-            );
-        }
-
-        #[test]
-        fn as_velocity_left() {
-            assert_eq!(
-                Direction::Left.as_velocity(),
-                Velocity([0, -(Velocity::DEFAULT_MAGNITUDE as isize)])
-            );
-        }
-
-        #[test]
-        fn as_velocity_down() {
-            assert_eq!(
-                Direction::Down.as_velocity(),
-                Velocity([Velocity::DEFAULT_MAGNITUDE as isize, 0])
-            );
-        }
+    #[test]
+    fn is_not_vertical() {
+        assert!(!Velocity([0, 1]).is_vertical());
     }
 
-    #[cfg(test)]
-    mod cell_with_metadata {
-        use super::*;
-
-        #[test]
-        fn to_string_empty() {
-            let snake = CellWithMetadata::Empty(0);
-            assert_eq!(snake.to_string(), "░░")
-        }
-
-        #[test]
-        fn to_string_food() {
-            let snake = CellWithMetadata::Food(0);
-            assert_eq!(snake.to_string(), "▒▒")
-        }
-
-        #[test]
-        fn to_string_snake() {
-            let snake = CellWithMetadata::Snake;
-            assert_eq!(snake.to_string(), "██")
-        }
+    #[test]
+    fn is_moving() {
+        assert!(Velocity([1, 0]).is_moving());
     }
 
-    #[cfg(test)]
-    mod options {
-        use super::*;
+    #[test]
+    fn is_not_moving() {
+        assert!(!Velocity([0, 0]).is_moving());
+    }
+}
 
-        const TEST_OPTIONS: Options = Options {
-            shape: (3, 3),
-            n_foods: 1,
-            seed: Some(0),
-        };
+#[cfg(test)]
+mod direction_tests {
+    use super::*;
 
-        #[test]
-        fn build() {
-            let game_state = TEST_OPTIONS.build();
-            assert_eq!(game_state.options, TEST_OPTIONS);
-            assert!(matches!(game_state.status, Status::Ongoing));
-            assert_eq!(game_state.velocity, Velocity::default());
-            assert_eq!(
-                game_state.board,
-                Array2::from_shape_vec(
-                    TEST_OPTIONS.shape,
-                    vec![
-                        CellWithMetadata::Food(0),
-                        CellWithMetadata::Empty(1),
-                        CellWithMetadata::Empty(2),
-                        CellWithMetadata::Empty(3),
-                        CellWithMetadata::Snake,
-                        CellWithMetadata::Empty(4),
-                        CellWithMetadata::Empty(5),
-                        CellWithMetadata::Empty(6),
-                        CellWithMetadata::Empty(0),
-                    ],
-                )
-                .unwrap()
-            );
-        }
+    #[test]
+    fn as_velocity_up() {
+        assert_eq!(
+            Direction::Up.as_velocity(),
+            Velocity([-(Velocity::DEFAULT_MAGNITUDE as isize), 0])
+        );
+    }
 
-        #[test]
-        #[should_panic]
-        fn insufficient_board_size() {
-            Options {
-                shape: (1, 1),
-                n_foods: 1,
-                seed: None,
-            }
-            .build();
-        }
+    #[test]
+    fn as_velocity_right() {
+        assert_eq!(
+            Direction::Right.as_velocity(),
+            Velocity([0, Velocity::DEFAULT_MAGNITUDE as isize])
+        );
+    }
 
-        #[test]
-        fn is_valid_board_size() {
-            assert_eq!(TEST_OPTIONS.is_valid_board_size(), true);
-        }
+    #[test]
+    fn as_velocity_left() {
+        assert_eq!(
+            Direction::Left.as_velocity(),
+            Velocity([0, -(Velocity::DEFAULT_MAGNITUDE as isize)])
+        );
+    }
 
-        #[test]
-        fn get_head() {
-            assert_eq!(TEST_OPTIONS.get_head(), [1, 1]);
-        }
+    #[test]
+    fn as_velocity_down() {
+        assert_eq!(
+            Direction::Down.as_velocity(),
+            Velocity([Velocity::DEFAULT_MAGNITUDE as isize, 0])
+        );
+    }
+}
 
-        #[test]
-        fn get_board() {
-            let actual = TEST_OPTIONS.get_board();
-            let expected = Array2::from_shape_vec(
+#[cfg(test)]
+mod cell_with_metadata_tests {
+    use super::*;
+
+    #[test]
+    fn to_string_empty() {
+        let snake = CellWithMetadata::Empty(0);
+        assert_eq!(snake.to_string(), "░░")
+    }
+
+    #[test]
+    fn to_string_food() {
+        let snake = CellWithMetadata::Food(0);
+        assert_eq!(snake.to_string(), "▒▒")
+    }
+
+    #[test]
+    fn to_string_snake() {
+        let snake = CellWithMetadata::Snake;
+        assert_eq!(snake.to_string(), "██")
+    }
+}
+
+#[cfg(test)]
+mod options_tests {
+    use super::*;
+
+    const TEST_OPTIONS: Options = Options {
+        shape: (3, 3),
+        n_foods: 1,
+        seed: Some(0),
+    };
+
+    #[test]
+    fn build() {
+        let game_state = TEST_OPTIONS.build();
+        assert_eq!(game_state.options, TEST_OPTIONS);
+        assert!(matches!(game_state.status, Status::Ongoing));
+        assert_eq!(game_state.velocity, Velocity::default());
+        assert_eq!(
+            game_state.board,
+            Array2::from_shape_vec(
                 TEST_OPTIONS.shape,
                 vec![
-                    CellWithMetadata::Empty(0),
+                    CellWithMetadata::Food(0),
                     CellWithMetadata::Empty(1),
                     CellWithMetadata::Empty(2),
                     CellWithMetadata::Empty(3),
@@ -479,57 +462,154 @@ mod tests {
                     CellWithMetadata::Empty(4),
                     CellWithMetadata::Empty(5),
                     CellWithMetadata::Empty(6),
-                    CellWithMetadata::Empty(7),
+                    CellWithMetadata::Empty(0),
                 ],
             )
-            .unwrap();
-            assert_eq!(actual, expected);
-        }
+            .unwrap()
+        );
+    }
 
-        #[test]
-        fn get_empty() {
-            let actual = TEST_OPTIONS.get_empty();
-            let expected = vec![
-                Position([0, 0]),
-                Position([0, 1]),
-                Position([0, 2]),
-                Position([1, 0]),
-                Position([1, 2]),
-                Position([2, 0]),
-                Position([2, 1]),
-                Position([2, 2]),
-            ];
-            assert_eq!(actual, expected);
+    #[test]
+    #[should_panic]
+    fn insufficient_board_size() {
+        Options {
+            shape: (1, 1),
+            n_foods: 1,
+            seed: None,
         }
+        .build();
+    }
 
-        #[test]
-        fn get_snake() {
-            let actual = TEST_OPTIONS.get_snake();
-            let expected = vec![Position(TEST_OPTIONS.get_head())];
-            assert_eq!(actual, expected);
-        }
+    #[test]
+    fn is_valid_board_size() {
+        assert_eq!(TEST_OPTIONS.is_valid_board_size(), true);
+    }
 
-        #[test]
-        fn get_foods() {
-            assert_eq!(TEST_OPTIONS.get_foods(), Vec::new());
-        }
+    #[test]
+    fn get_head() {
+        assert_eq!(TEST_OPTIONS.get_head(), [1, 1]);
+    }
 
-        #[test]
-        fn get_rng_some() {
-            let actual = TEST_OPTIONS.get_rng();
-            let expected = ChaCha8Rng::seed_from_u64(TEST_OPTIONS.seed.unwrap());
-            assert_eq!(actual, expected);
-        }
+    #[test]
+    fn get_board() {
+        let actual = TEST_OPTIONS.get_board();
+        let expected = Array2::from_shape_vec(
+            TEST_OPTIONS.shape,
+            vec![
+                CellWithMetadata::Empty(0),
+                CellWithMetadata::Empty(1),
+                CellWithMetadata::Empty(2),
+                CellWithMetadata::Empty(3),
+                CellWithMetadata::Snake,
+                CellWithMetadata::Empty(4),
+                CellWithMetadata::Empty(5),
+                CellWithMetadata::Empty(6),
+                CellWithMetadata::Empty(7),
+            ],
+        )
+        .unwrap();
+        assert_eq!(actual, expected);
+    }
 
-        #[test]
-        fn get_rng_none() {
-            // This just asserts it doesn't `panic!`
-            Options {
-                shape: (3, 3),
-                n_foods: 1,
-                seed: None,
-            }
-            .get_rng();
+    #[test]
+    fn get_empty() {
+        let actual = TEST_OPTIONS.get_empty();
+        let expected = vec![
+            Position([0, 0]),
+            Position([0, 1]),
+            Position([0, 2]),
+            Position([1, 0]),
+            Position([1, 2]),
+            Position([2, 0]),
+            Position([2, 1]),
+            Position([2, 2]),
+        ];
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn get_snake() {
+        let actual = TEST_OPTIONS.get_snake();
+        let expected = vec![Position(TEST_OPTIONS.get_head())];
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn get_foods() {
+        assert_eq!(TEST_OPTIONS.get_foods(), Vec::new());
+    }
+
+    #[test]
+    fn get_rng_some() {
+        let actual = TEST_OPTIONS.get_rng();
+        let expected = ChaCha8Rng::seed_from_u64(TEST_OPTIONS.seed.unwrap());
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn get_rng_none() {
+        // This just asserts it doesn't `panic!`
+        Options {
+            shape: (3, 3),
+            n_foods: 1,
+            seed: None,
         }
+        .get_rng();
+    }
+}
+
+#[cfg(test)]
+mod game_state_tests {
+    use super::*;
+
+    #[test]
+    fn set_direction() {
+        let mut game_state = Options {
+            shape: (3, 3),
+            n_foods: 1,
+            seed: Some(0),
+        }
+        .build();
+        assert!(game_state.set_direction(Direction::Up).is_ok());
+        assert!(!game_state.set_direction(Direction::Up).is_ok());
+    }
+
+    #[test]
+    fn iterate_turn_empty() {
+        let mut game_state = Options {
+            shape: (3, 3),
+            n_foods: 0,
+            seed: Some(0),
+        }
+        .build();
+        assert!(game_state.set_direction(Direction::Right).is_ok());
+        assert!(game_state.iterate_turn().is_ok());
+    }
+
+    #[test]
+    fn iterate_turn_food() {
+        let mut game_state = Options {
+            shape: (3, 3),
+            n_foods: 8,
+            seed: Some(0),
+        }
+        .build();
+        assert!(game_state.set_direction(Direction::Right).is_ok());
+        assert!(game_state.iterate_turn().is_ok());
+    }
+
+    #[test]
+    fn iterate_turn_snake() {
+        let mut game_state = Options {
+            shape: (3, 3),
+            n_foods: 8,
+            seed: Some(0),
+        }
+        .build();
+        assert!(game_state.set_direction(Direction::Right).is_ok());
+        assert!(game_state.iterate_turn().is_ok());
+        assert!(game_state.iterate_turn().is_ok());
+        assert!(game_state.iterate_turn().is_ok());
+        assert!(matches!(game_state.iterate_turn(), Err(GameIsOver)));
     }
 }
