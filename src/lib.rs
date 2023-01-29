@@ -6,6 +6,90 @@ use std::collections::VecDeque;
 use std::fmt::Display;
 use std::time::SystemTime;
 
+pub enum Status {
+    Ongoing,
+    Over { is_won: bool },
+}
+
+/// A board reference to a cell referred to as `[i, j]`.
+#[derive(Debug, PartialEq)]
+struct Position([usize; 2]);
+
+/// A 1 turn change in a `Position` referred to as `[di, dj]`.
+#[derive(Default, Debug, PartialEq)]
+struct Velocity([isize; 2]);
+
+impl Velocity {
+    /// The default magnitude for a velocity given by a direction.
+    const DEFAULT_MAGNITUDE: usize = 1;
+
+    fn is_vertical(&self) -> bool {
+        self.0[0] != 0 && self.0[1] == 0
+    }
+
+    fn is_moving(&self) -> bool {
+        self.0[0] != 0 || self.0[1] != 0
+    }
+}
+
+#[derive(Clone)]
+pub enum Direction {
+    Up,
+    Left,
+    Right,
+    Down,
+}
+
+impl Direction {
+    fn as_velocity(&self) -> Velocity {
+        match self {
+            Direction::Up => Velocity([-(Velocity::DEFAULT_MAGNITUDE as isize), 0]),
+            Direction::Left => Velocity([0, -(Velocity::DEFAULT_MAGNITUDE as isize)]),
+            Direction::Right => Velocity([0, Velocity::DEFAULT_MAGNITUDE as isize]),
+            Direction::Down => Velocity([Velocity::DEFAULT_MAGNITUDE as isize, 0]),
+        }
+    }
+}
+
+#[allow(dead_code)]
+enum Cell {
+    Snake,
+    Empty,
+    Food,
+}
+
+#[derive(Debug, PartialEq)]
+enum CellWithMetadata {
+    Snake,
+    Empty(usize),
+    Food(usize),
+}
+
+impl Display for CellWithMetadata {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let char = match self {
+            CellWithMetadata::Empty(_) => "░░",
+            CellWithMetadata::Food(_) => "▒▒",
+            CellWithMetadata::Snake => "██",
+        };
+        write!(f, "{char}")
+    }
+}
+
+pub enum Command {
+    SetDirection(Direction),
+    IterateTurn,
+}
+
+#[derive(Debug)]
+pub struct GameIsOver;
+
+#[derive(Debug)]
+pub struct InvalidDirection;
+
+#[derive(Debug)]
+struct FoodCannotBeAdded;
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Options {
     pub shape: (usize, usize),
@@ -36,8 +120,8 @@ impl Options {
 
     fn is_valid_board_size(&self) -> bool {
         let (n_rows, n_cols) = self.shape;
-        let is_valid_n_rows = n_rows >= Direction::DEFAULT_MAGNITUDE;
-        let is_valid_n_cols = n_cols >= Direction::DEFAULT_MAGNITUDE;
+        let is_valid_n_rows = n_rows >= Velocity::DEFAULT_MAGNITUDE;
+        let is_valid_n_cols = n_cols >= Velocity::DEFAULT_MAGNITUDE;
         let n_cells = n_rows * n_cols;
         let n_snake = 1;
         let n_non_empty = n_snake + self.n_foods;
@@ -100,86 +184,6 @@ impl Default for Options {
     }
 }
 
-pub enum Status {
-    Ongoing,
-    Over { is_won: bool },
-}
-
-/// A board reference to a cell referred to as `[i, j]`.
-#[derive(Debug, PartialEq)]
-struct Position([usize; 2]);
-
-/// A 1 turn change in a `Position` referred to as `[di, dj]`.
-#[derive(Default, Debug, PartialEq)]
-struct Velocity([isize; 2]);
-
-impl Velocity {
-    fn is_vertical(&self) -> bool {
-        self.0[0] != 0 && self.0[1] == 0
-    }
-
-    fn is_moving(&self) -> bool {
-        self.0[0] != 0 || self.0[1] != 0
-    }
-}
-
-#[derive(Clone)]
-pub enum Direction {
-    Up,
-    Left,
-    Right,
-    Down,
-}
-
-impl Direction {
-    /// The default magnitude for a velocity given by a direction.
-    const DEFAULT_MAGNITUDE: usize = 1;
-
-    fn as_velocity(&self) -> Velocity {
-        match self {
-            Direction::Up => Velocity([-(Direction::DEFAULT_MAGNITUDE as isize), 0]),
-            Direction::Left => Velocity([0, -(Direction::DEFAULT_MAGNITUDE as isize)]),
-            Direction::Right => Velocity([0, Direction::DEFAULT_MAGNITUDE as isize]),
-            Direction::Down => Velocity([Direction::DEFAULT_MAGNITUDE as isize, 0]),
-        }
-    }
-}
-
-#[allow(dead_code)]
-enum Cell {
-    Snake,
-    Empty,
-    Food,
-}
-
-#[derive(Debug, PartialEq)]
-enum CellWithMetadata {
-    Snake,
-    Empty(usize),
-    Food(usize),
-}
-
-impl Display for CellWithMetadata {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let char = match self {
-            CellWithMetadata::Snake => 'O',
-            CellWithMetadata::Empty(_) => ' ',
-            CellWithMetadata::Food(_) => 'X',
-        };
-        write!(f, "{char}")
-    }
-}
-
-pub enum Command {
-    SetDirection(Direction),
-    IterateTurn,
-}
-
-pub enum Error {
-    InvalidDirection,
-    GameIsOver,
-}
-
 pub struct GameState {
     options: Options,
     status: Status,
@@ -191,29 +195,18 @@ pub struct GameState {
     foods: Vec<Position>,
 }
 
-#[derive(Debug)]
-struct FoodCannotBeAdded;
-
 impl GameState {
-    fn check_status(&self) -> Result<(), Error> {
-        match self.status {
-            Status::Ongoing => Ok(()),
-            Status::Over { .. } => Err(Error::GameIsOver),
-        }
-    }
-
-    pub fn set_direction(&mut self, direction: Direction) -> Result<(), Error> {
-        self.check_status()?;
+    pub fn set_direction(&mut self, direction: Direction) -> Result<(), InvalidDirection> {
         let velocity = direction.as_velocity();
         if velocity.is_vertical() == self.velocity.is_vertical() {
-            Err(Error::InvalidDirection)
+            Err(InvalidDirection)
         } else {
             self.velocity = velocity;
             Ok(())
         }
     }
 
-    pub fn iterate_turn(&mut self) -> Result<(), Error> {
+    pub fn iterate_turn(&mut self) -> Result<(), GameIsOver> {
         self.check_status()?;
         if !self.velocity.is_moving() {
             return Ok(());
@@ -248,7 +241,7 @@ impl GameState {
                     self.board[position.0] = CellWithMetadata::Food(foods_index);
                 }
 
-                // Replace eaten `Entity::Food`
+                // Replace eaten `Entity::Food`, if there is room
                 let _ = self.add_food();
             }
         }
@@ -260,17 +253,24 @@ impl GameState {
         Ok(())
     }
 
+    fn check_status(&self) -> Result<(), GameIsOver> {
+        match self.status {
+            Status::Ongoing => Ok(()),
+            Status::Over { .. } => Err(GameIsOver),
+        }
+    }
+
     fn compute_head(&self) -> Position {
         let (n_rows, n_cols) = self.options.shape;
         let Position([i_0, j_0]) = self.snake.front().expect("non-zero length snake");
         let Velocity([d_i, d_j]) = self.velocity;
         let i_1 = i_0
             .checked_add_signed(d_i)
-            .unwrap_or(n_rows - Direction::DEFAULT_MAGNITUDE)
+            .unwrap_or(n_rows - Velocity::DEFAULT_MAGNITUDE)
             % n_rows;
         let j_1 = j_0
             .checked_add_signed(d_j)
-            .unwrap_or(n_cols - Direction::DEFAULT_MAGNITUDE)
+            .unwrap_or(n_cols - Velocity::DEFAULT_MAGNITUDE)
             % n_cols;
         Position([i_1, j_1])
     }
@@ -305,13 +305,108 @@ impl GameState {
 
 impl Display for GameState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.board)
+        let string = self
+            .board
+            .outer_iter()
+            .map(|row| {
+                row.iter()
+                    .map(|cell_with_metadata| cell_with_metadata.to_string())
+                    .collect::<String>()
+                    + "\n"
+            })
+            .collect::<String>();
+        write!(f, "{string}",)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(test)]
+    mod velocity {
+        use super::*;
+
+        #[test]
+        fn is_vertical() {
+            assert!(Velocity([1, 0]).is_vertical());
+        }
+
+        #[test]
+        fn is_not_vertical() {
+            assert!(!Velocity([0, 1]).is_vertical());
+        }
+
+        #[test]
+        fn is_moving() {
+            assert!(Velocity([1, 0]).is_moving());
+        }
+
+        #[test]
+        fn is_not_moving() {
+            assert!(!Velocity([0, 0]).is_moving());
+        }
+    }
+
+    #[cfg(test)]
+    mod direction {
+        use super::*;
+
+        #[test]
+        fn as_velocity_up() {
+            assert_eq!(
+                Direction::Up.as_velocity(),
+                Velocity([-(Velocity::DEFAULT_MAGNITUDE as isize), 0])
+            );
+        }
+
+        #[test]
+        fn as_velocity_right() {
+            assert_eq!(
+                Direction::Right.as_velocity(),
+                Velocity([0, Velocity::DEFAULT_MAGNITUDE as isize])
+            );
+        }
+
+        #[test]
+        fn as_velocity_left() {
+            assert_eq!(
+                Direction::Left.as_velocity(),
+                Velocity([0, -(Velocity::DEFAULT_MAGNITUDE as isize)])
+            );
+        }
+
+        #[test]
+        fn as_velocity_down() {
+            assert_eq!(
+                Direction::Down.as_velocity(),
+                Velocity([Velocity::DEFAULT_MAGNITUDE as isize, 0])
+            );
+        }
+    }
+
+    #[cfg(test)]
+    mod cell_with_metadata {
+        use super::*;
+
+        #[test]
+        fn to_string_empty() {
+            let snake = CellWithMetadata::Empty(0);
+            assert_eq!(snake.to_string(), "░░")
+        }
+
+        #[test]
+        fn to_string_food() {
+            let snake = CellWithMetadata::Food(0);
+            assert_eq!(snake.to_string(), "▒▒")
+        }
+
+        #[test]
+        fn to_string_snake() {
+            let snake = CellWithMetadata::Snake;
+            assert_eq!(snake.to_string(), "██")
+        }
+    }
 
     #[cfg(test)]
     mod options {
@@ -435,31 +530,6 @@ mod tests {
                 seed: None,
             }
             .get_rng();
-        }
-    }
-
-    #[cfg(test)]
-    mod velocity {
-        use super::*;
-
-        #[test]
-        fn is_vertical() {
-            assert!(Velocity([1, 0]).is_vertical());
-        }
-
-        #[test]
-        fn is_not_vertical() {
-            assert!(!Velocity([0, 1]).is_vertical());
-        }
-
-        #[test]
-        fn is_moving() {
-            assert!(Velocity([1, 0]).is_moving());
-        }
-
-        #[test]
-        fn is_not_moving() {
-            assert!(!Velocity([0, 0]).is_moving());
         }
     }
 }

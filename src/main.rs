@@ -16,7 +16,7 @@ fn main() {
         .clone();
         clearscreen::clear().expect("failed to clear screen");
         let _ = game_state.set_direction(direction);
-        println!("{game_state}\n");
+        print!("{game_state}\n");
         game_state.iterate_turn().is_ok()
     } {}
 }
