@@ -1,2 +1,305 @@
-pub mod four_layer;
-pub mod ports_and_adapters;
+use ndarray::Array2;
+use rand::prelude::*;
+use rand_chacha::ChaCha8Rng;
+use std::cmp::Ordering;
+use std::collections::VecDeque;
+use std::fmt::Display;
+use std::time::SystemTime;
+
+#[derive(Clone)]
+pub struct Options {
+    shape: (usize, usize),
+    n_foods: usize,
+    seed: Option<u64>,
+}
+
+impl Options {
+    pub fn build(&self) -> GameState {
+        if !self.is_valid_board_size() {
+            panic!("insufficient board size");
+        }
+        let mut game_state = GameState {
+            options: self.clone(),
+            status: Status::Ongoing,
+            velocity: Velocity::default(),
+            board: self.get_board(),
+            snake: self.get_snake(),
+            empty: self.get_empty(),
+            foods: self.get_foods(),
+            rng: self.get_rng(),
+        };
+        for _ in 0..self.n_foods {
+            game_state.add_food().expect("non-zero empty");
+        }
+        game_state
+    }
+
+    fn is_valid_board_size(&self) -> bool {
+        let (n_rows, n_cols) = self.shape;
+        let is_valid_n_rows = n_rows >= Direction::DEFAULT_MAGNITUDE;
+        let is_valid_n_cols = n_cols >= Direction::DEFAULT_MAGNITUDE;
+        let n_cells = n_rows * n_cols;
+        let n_snake = 1;
+        let n_non_empty = n_snake + self.n_foods;
+        is_valid_n_rows && is_valid_n_cols && n_cells >= n_non_empty
+    }
+
+    fn get_head(&self) -> [usize; 2] {
+        let (n_rows, n_cols) = self.shape;
+        [n_rows / 2, n_cols / 2]
+    }
+
+    fn get_board(&self) -> Array2<CellWithMetadata> {
+        let (n_rows, n_cols) = self.shape;
+        let [head_i, head_j] = self.get_head();
+        let head_index = head_i * n_rows + head_j * n_cols;
+        Array2::from_shape_fn(self.shape, |(i, j)| {
+            let index = i * n_rows + j * n_cols;
+            match index.cmp(&head_index) {
+                Ordering::Less => CellWithMetadata::Empty(index),
+                Ordering::Equal => CellWithMetadata::Snake,
+                Ordering::Greater => CellWithMetadata::Empty(index - 1),
+            }
+        })
+    }
+
+    fn get_empty(&self) -> Vec<Position> {
+        self.get_board()
+            .indexed_iter()
+            .filter(|(_, cell)| matches!(cell, CellWithMetadata::Empty(_)))
+            .map(|(index, _)| Position([index.0, index.1]))
+            .collect()
+    }
+
+    fn get_snake(&self) -> VecDeque<Position> {
+        let (n_rows, n_cols) = self.shape;
+        let mut snake = VecDeque::with_capacity(n_rows * n_cols);
+        snake.push_front(Position(self.get_head()));
+        snake
+    }
+
+    fn get_foods(&self) -> Vec<Position> {
+        Vec::with_capacity(self.n_foods)
+    }
+
+    fn get_rng(&self) -> ChaCha8Rng {
+        let seed = self
+            .seed
+            .unwrap_or_else(|| SystemTime::now().elapsed().expect("system time").as_secs());
+        ChaCha8Rng::seed_from_u64(seed)
+    }
+}
+
+impl Default for Options {
+    fn default() -> Self {
+        Options {
+            shape: (20, 20),
+            n_foods: 1,
+            seed: None,
+        }
+    }
+}
+
+pub enum Status {
+    Ongoing,
+    Over { is_won: bool },
+}
+
+/// A board reference to a cell referred to as `[i, j]`.
+struct Position([usize; 2]);
+
+/// A 1 turn change in a `Position` referred to as `[di, dj]`.
+#[derive(Default)]
+struct Velocity([isize; 2]);
+
+impl Velocity {
+    fn is_vertical(&self) -> bool {
+        self.0[0] != 0 && self.0[1] == 0
+    }
+}
+
+#[derive(Clone)]
+pub enum Direction {
+    Up,
+    Left,
+    Right,
+    Down,
+}
+
+impl Direction {
+    /// The default magnitude for a velocity given by a direction.
+    const DEFAULT_MAGNITUDE: usize = 1;
+
+    fn as_velocity(&self) -> Velocity {
+        match self {
+            Direction::Up => Velocity([-(Direction::DEFAULT_MAGNITUDE as isize), 0]),
+            Direction::Left => Velocity([0, -(Direction::DEFAULT_MAGNITUDE as isize)]),
+            Direction::Right => Velocity([0, Direction::DEFAULT_MAGNITUDE as isize]),
+            Direction::Down => Velocity([Direction::DEFAULT_MAGNITUDE as isize, 0]),
+        }
+    }
+}
+
+enum Cell {
+    Snake,
+    Empty,
+    Food,
+}
+
+enum CellWithMetadata {
+    Snake,
+    Empty(usize),
+    Food(usize),
+}
+
+impl Display for CellWithMetadata {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let char = match self {
+            CellWithMetadata::Snake => 'O',
+            CellWithMetadata::Empty(_) => ' ',
+            CellWithMetadata::Food(_) => 'X',
+        };
+        write!(f, "{char}")
+    }
+}
+
+pub enum Command {
+    SetDirection(Direction),
+    IterateTurn,
+}
+
+pub enum Error {
+    InvalidDirection,
+    GameIsOver,
+}
+
+pub struct GameState {
+    options: Options,
+    status: Status,
+    rng: ChaCha8Rng,
+    velocity: Velocity,
+    board: Array2<CellWithMetadata>,
+    snake: VecDeque<Position>,
+    empty: Vec<Position>,
+    foods: Vec<Position>,
+}
+
+#[derive(Debug)]
+struct FoodCannotBeAdded;
+
+impl GameState {
+    pub fn handle(&mut self, command: Command) -> Result<(), Error> {
+        self.check_status()?;
+        match command {
+            Command::SetDirection(direction) => self.set_direction(direction),
+            Command::IterateTurn => self.iterate_turn(),
+        }
+    }
+
+    fn check_status(&self) -> Result<(), Error> {
+        match self.status {
+            Status::Ongoing => Ok(()),
+            Status::Over { .. } => Err(Error::GameIsOver),
+        }
+    }
+
+    pub fn set_direction(&mut self, direction: Direction) -> Result<(), Error> {
+        let velocity = direction.as_velocity();
+        if velocity.is_vertical() == self.velocity.is_vertical() {
+            Err(Error::InvalidDirection)
+        } else {
+            self.velocity = velocity;
+            Ok(())
+        }
+    }
+
+    pub fn iterate_turn(&mut self) -> Result<(), Error> {
+        let head = self.compute_head();
+        match self.board[head.0] {
+            CellWithMetadata::Snake => {
+                println!("snake");
+                self.status = Status::Over {
+                    is_won: self.empty.is_empty() && self.foods.is_empty(),
+                };
+                return Ok(());
+            }
+            CellWithMetadata::Empty(empty_index) => {
+                println!("empty");
+                // Remove `Entity::Empty` and update `empty_index` for `entities`
+                self.empty.swap_remove(empty_index);
+                if empty_index < self.empty.len() {
+                    let position = &self.empty[empty_index];
+                    self.board[position.0] = CellWithMetadata::Empty(empty_index);
+                }
+
+                // Remove the LRU `Entity::Snake`
+                let tail = self.snake.pop_back().expect("non-empty snake");
+                let empty_index = self.empty.len();
+                self.board[tail.0] = CellWithMetadata::Empty(empty_index);
+                self.empty.push(tail);
+            }
+            CellWithMetadata::Food(foods_index) => {
+                println!("Food");
+                // Remove `Entity::Food` and update `food_index` for `entities`
+                self.foods.swap_remove(foods_index);
+                if foods_index < self.foods.len() {
+                    let position = &self.foods[foods_index];
+                    self.board[position.0] = CellWithMetadata::Food(foods_index);
+                }
+
+                // Replace eaten `Entity::Food`
+                let _ = self.add_food();
+            }
+        }
+        Ok(())
+    }
+
+    fn compute_head(&self) -> Position {
+        let Position([i_0, j_0]) = self.snake.front().expect("non-zero length snake");
+        let Velocity([d_i, d_j]) = self.velocity;
+        let i_1 = i_0
+            .checked_add_signed(d_i)
+            .unwrap_or(self.options.shape.0 - Direction::DEFAULT_MAGNITUDE);
+        let j_1 = j_0
+            .checked_add_signed(d_j)
+            .unwrap_or(self.options.shape.1 - Direction::DEFAULT_MAGNITUDE);
+        Position([i_1, j_1])
+    }
+
+    fn add_food(&mut self) -> Result<(), FoodCannotBeAdded> {
+        if self.foods.len() >= self.options.n_foods {
+            panic!("max foods");
+        }
+
+        if self.empty.is_empty() {
+            return Err(FoodCannotBeAdded);
+        }
+
+        // Remove a random instance of `CellWithMetadata::Empty` and get its `Position`
+        let empty_index = self.rng.gen_range(0..self.empty.len());
+        let position = self.empty.swap_remove(empty_index);
+
+        // Update `self.board` reference to the `CellWithMetadata::Empty` that was swapped
+        if empty_index < self.empty.len() {
+            let position = &self.empty[empty_index];
+            self.board[position.0] = CellWithMetadata::Empty(empty_index);
+        }
+
+        // Add new instance of `CellWithMetadata::Food`
+        let foods_index = self.foods.len();
+        self.board[position.0] = CellWithMetadata::Food(foods_index);
+        self.foods.push(position);
+
+        Ok(())
+    }
+}
+
+impl Display for GameState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.board)
+    }
+}
+
+#[cfg(test)]
+mod tests {}
+
