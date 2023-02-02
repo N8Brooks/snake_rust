@@ -1,5 +1,6 @@
 use rand::Rng;
-use snake_rust::{Direction, Options};
+use snake_rust::direction::Direction;
+use snake_rust::Options;
 use std::{thread, time};
 
 fn main() {
@@ -16,7 +17,7 @@ fn main() {
         .clone();
         clearscreen::clear().expect("failed to clear screen");
         let _ = game_state.set_direction(direction);
-        print!("{game_state}\n");
+        println!("{game_state}");
         game_state.iterate_turn().is_ok()
     } {}
 }

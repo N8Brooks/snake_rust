@@ -1,3 +1,5 @@
+use controller::{Controller, MockController};
+use direction::Direction;
 use ndarray::Array2;
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
@@ -5,6 +7,9 @@ use std::cmp::Ordering;
 use std::collections::VecDeque;
 use std::fmt::Display;
 use std::time::SystemTime;
+
+pub mod controller;
+pub mod direction;
 
 pub enum Status {
     Ongoing,
@@ -30,19 +35,9 @@ impl Velocity {
     fn is_moving(&self) -> bool {
         self.0[0] != 0 || self.0[1] != 0
     }
-}
 
-#[derive(Clone)]
-pub enum Direction {
-    Up,
-    Left,
-    Right,
-    Down,
-}
-
-impl Direction {
-    fn as_velocity(&self) -> Velocity {
-        match self {
+    fn from_direction(direction: &Direction) -> Velocity {
+        match direction {
             Direction::Up => Velocity([-(Velocity::DEFAULT_MAGNITUDE as isize), 0]),
             Direction::Left => Velocity([0, -(Velocity::DEFAULT_MAGNITUDE as isize)]),
             Direction::Right => Velocity([0, Velocity::DEFAULT_MAGNITUDE as isize]),
@@ -85,11 +80,12 @@ pub struct InvalidDirection;
 #[derive(Debug)]
 struct FoodCannotBeAdded;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct Options {
     pub shape: (usize, usize),
     pub n_foods: usize,
     pub seed: Option<u64>,
+    pub controller: Box<dyn Controller>,
 }
 
 impl Options {
@@ -106,6 +102,7 @@ impl Options {
             empty: self.get_empty(),
             foods: self.get_foods(),
             rng: self.get_rng(),
+            controller: Box::new(MockController::empty()),
         };
         for _ in 0..self.n_foods {
             game_state.add_food().expect("non-zero empty");
@@ -175,6 +172,7 @@ impl Default for Options {
             shape: (20, 20),
             n_foods: 1,
             seed: None,
+            controller: Box::new(MockController::empty()),
         }
     }
 }
@@ -188,11 +186,13 @@ pub struct GameState {
     snake: VecDeque<Position>,
     empty: Vec<Position>,
     foods: Vec<Position>,
+    #[allow(dead_code)]
+    controller: Box<dyn Controller>,
 }
 
 impl GameState {
     pub fn set_direction(&mut self, direction: Direction) -> Result<(), InvalidDirection> {
-        let velocity = direction.as_velocity();
+        let velocity = Velocity::from_direction(&direction);
         if self.velocity.is_moving() && velocity.is_vertical() == self.velocity.is_vertical() {
             Err(InvalidDirection)
         } else {
@@ -371,40 +371,35 @@ mod velocity_tests {
     fn is_not_moving() {
         assert!(!Velocity([0, 0]).is_moving());
     }
-}
-
-#[cfg(test)]
-mod direction_tests {
-    use super::*;
 
     #[test]
-    fn as_velocity_up() {
+    fn from_velocity_up() {
         assert_eq!(
-            Direction::Up.as_velocity(),
+            Velocity::from_direction(&Direction::Up),
             Velocity([-(Velocity::DEFAULT_MAGNITUDE as isize), 0])
         );
     }
 
     #[test]
-    fn as_velocity_right() {
+    fn from_velocity_right() {
         assert_eq!(
-            Direction::Right.as_velocity(),
+            Velocity::from_direction(&Direction::Right),
             Velocity([0, Velocity::DEFAULT_MAGNITUDE as isize])
         );
     }
 
     #[test]
-    fn as_velocity_left() {
+    fn from_velocity_left() {
         assert_eq!(
-            Direction::Left.as_velocity(),
+            Velocity::from_direction(&Direction::Left),
             Velocity([0, -(Velocity::DEFAULT_MAGNITUDE as isize)])
         );
     }
 
     #[test]
-    fn as_velocity_down() {
+    fn from_velocity_down() {
         assert_eq!(
-            Direction::Down.as_velocity(),
+            Velocity::from_direction(&Direction::Down),
             Velocity([Velocity::DEFAULT_MAGNITUDE as isize, 0])
         );
     }
@@ -437,22 +432,25 @@ mod cell_with_metadata_tests {
 mod options_tests {
     use super::*;
 
-    const TEST_OPTIONS: Options = Options {
-        shape: (3, 3),
-        n_foods: 1,
-        seed: Some(0),
-    };
+    fn make_test_options() -> Options {
+        Options {
+            shape: (3, 3),
+            n_foods: 1,
+            seed: Some(0),
+            controller: Box::new(MockController::empty()),
+        }
+    }
 
     #[test]
     fn build() {
-        let game_state = TEST_OPTIONS.build();
-        assert_eq!(game_state.options, TEST_OPTIONS);
+        let options = make_test_options();
+        let game_state = options.build();
         assert!(matches!(game_state.status, Status::Ongoing));
         assert_eq!(game_state.velocity, Velocity::default());
         assert_eq!(
             game_state.board,
             Array2::from_shape_vec(
-                TEST_OPTIONS.shape,
+                options.shape,
                 vec![
                     CellWithMetadata::Food(0),
                     CellWithMetadata::Empty(1),
@@ -476,25 +474,27 @@ mod options_tests {
             shape: (1, 1),
             n_foods: 1,
             seed: None,
+            controller: Box::new(MockController::empty()),
         }
         .build();
     }
 
     #[test]
     fn is_valid_board_size() {
-        assert_eq!(TEST_OPTIONS.is_valid_board_size(), true);
+        assert_eq!(make_test_options().is_valid_board_size(), true);
     }
 
     #[test]
     fn get_head() {
-        assert_eq!(TEST_OPTIONS.get_head(), [1, 1]);
+        assert_eq!(make_test_options().get_head(), [1, 1]);
     }
 
     #[test]
     fn get_board() {
-        let actual = TEST_OPTIONS.get_board();
+        let options = make_test_options();
+        let actual = options.get_board();
         let expected = Array2::from_shape_vec(
-            TEST_OPTIONS.shape,
+            options.shape,
             vec![
                 CellWithMetadata::Empty(0),
                 CellWithMetadata::Empty(1),
@@ -513,7 +513,7 @@ mod options_tests {
 
     #[test]
     fn get_empty() {
-        let actual = TEST_OPTIONS.get_empty();
+        let actual = make_test_options().get_empty();
         let expected = vec![
             Position([0, 0]),
             Position([0, 1]),
@@ -529,20 +529,22 @@ mod options_tests {
 
     #[test]
     fn get_snake() {
-        let actual = TEST_OPTIONS.get_snake();
-        let expected = vec![Position(TEST_OPTIONS.get_head())];
+        let options = make_test_options();
+        let actual = options.get_snake();
+        let expected = vec![Position(options.get_head())];
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn get_foods() {
-        assert_eq!(TEST_OPTIONS.get_foods(), Vec::new());
+        assert_eq!(make_test_options().get_foods(), Vec::new());
     }
 
     #[test]
     fn get_rng_some() {
-        let actual = TEST_OPTIONS.get_rng();
-        let expected = ChaCha8Rng::seed_from_u64(TEST_OPTIONS.seed.unwrap());
+        let options = make_test_options();
+        let actual = options.get_rng();
+        let expected = ChaCha8Rng::seed_from_u64(options.seed.unwrap());
         assert_eq!(actual, expected);
     }
 
@@ -553,6 +555,7 @@ mod options_tests {
             shape: (3, 3),
             n_foods: 1,
             seed: None,
+            controller: Box::new(MockController::empty()),
         }
         .get_rng();
     }
@@ -568,6 +571,7 @@ mod game_state_tests {
             shape: (3, 3),
             n_foods: 1,
             seed: Some(0),
+            controller: Box::new(MockController::empty()),
         }
         .build();
         assert!(game_state.set_direction(Direction::Up).is_ok());
@@ -580,6 +584,7 @@ mod game_state_tests {
             shape: (3, 3),
             n_foods: 0,
             seed: Some(0),
+            controller: Box::new(MockController::empty()),
         }
         .build();
         assert!(game_state.set_direction(Direction::Right).is_ok());
@@ -592,6 +597,7 @@ mod game_state_tests {
             shape: (3, 3),
             n_foods: 8,
             seed: Some(0),
+            controller: Box::new(MockController::empty()),
         }
         .build();
         assert!(game_state.set_direction(Direction::Right).is_ok());
@@ -604,6 +610,7 @@ mod game_state_tests {
             shape: (3, 3),
             n_foods: 8,
             seed: Some(0),
+            controller: Box::new(MockController::empty()),
         }
         .build();
         assert!(game_state.set_direction(Direction::Right).is_ok());
