@@ -5,9 +5,4 @@ edition = "2021"
 
 [dependencies]
 rand = "0.8"
-clearscreen = "1.0"
-num = "0.4"
-ndarray = "0.15"
-num-traits = "0.2"
 rand_chacha = "0.3"
-dyn-clonable = "0.9"
