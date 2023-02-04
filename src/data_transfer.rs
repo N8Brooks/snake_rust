@@ -1,4 +1,4 @@
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Direction {
     Right,
     Up,
@@ -6,9 +6,9 @@ pub enum Direction {
     Down,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Cell {
     Empty,
     Foods,
-    Snake(Direction),
+    Snake(Option<Direction>),
 }
