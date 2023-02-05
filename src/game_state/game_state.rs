@@ -3,30 +3,28 @@ use crate::data_transfer::Cell;
 use crate::value_objects::Position;
 use std::collections::{HashSet, VecDeque};
 
-pub struct Options<const N_ROWS: usize, const N_COLS: usize, T: Seeder> {
+pub struct Options<const N_ROWS: usize, const N_COLS: usize> {
     pub n_foods: usize,
-    pub seeder: T,
+    pub seeder: Box<dyn Seeder>,
 }
 
-impl<const N_ROWS: usize, const N_COLS: usize> Options<N_ROWS, N_COLS, SecondsSeeder> {
-    pub fn with_n_foods(n_foods: usize) -> Self {
+impl<const N_ROWS: usize, const N_COLS: usize> Options<N_ROWS, N_COLS> {
+    pub fn new(n_foods: usize) -> Self {
         Options {
             n_foods,
-            seeder: SecondsSeeder::SECONDS_SEEDER,
+            seeder: Box::new(SecondsSeeder::SECONDS_SEEDER),
+        }
+    }
+
+    pub fn with_mock_seeder(n_foods: usize, seed: u64) -> Self {
+        Options {
+            n_foods,
+            seeder: Box::new(MockSeeder(seed)),
         }
     }
 }
 
-impl<const N_ROWS: usize, const N_COLS: usize> Options<N_ROWS, N_COLS, MockSeeder> {
-    pub fn with_n_foods(n_foods: usize) -> Self {
-        Options {
-            n_foods,
-            seeder: MockSeeder(0),
-        }
-    }
-}
-
-impl<const N_ROWS: usize, const N_COLS: usize, T: Seeder> Options<N_ROWS, N_COLS, T> {
+impl<const N_ROWS: usize, const N_COLS: usize> Options<N_ROWS, N_COLS> {
     pub fn build(&self) -> Result<GameState<N_ROWS, N_COLS>, InvalidOptions> {
         let mut board = [[Cell::Empty; N_ROWS]; N_COLS];
         board[N_ROWS / 2][N_COLS / 2] = Cell::Snake(None);
@@ -88,7 +86,7 @@ mod options_tests {
 
     #[test]
     fn build_with_valid() {
-        let options = Options::<3, 3, MockSeeder>::with_n_foods(1);
+        let options = Options::<3, 3>::with_mock_seeder(1, 0);
         let game_state = options.build().unwrap();
         assert_eq!(game_state.board, EXPECTED_BOARD);
         let expected_empty = HashSet::from(EXPECTED_EMPTY);
@@ -102,33 +100,32 @@ mod options_tests {
 
     #[test]
     fn build_with_invalid() {
-        let mut options = Options::<3, 3, MockSeeder>::with_n_foods(1);
-        options.n_foods = 9;
+        let options = Options::<3, 3>::with_mock_seeder(9, 0);
         let game_state = options.build().unwrap_err();
         assert!(matches!(game_state, InvalidOptions));
     }
 
     #[test]
     fn is_valid_true() {
-        let options = Options::<3, 3, MockSeeder>::with_n_foods(8);
+        let options = Options::<3, 3>::with_mock_seeder(8, 0);
         assert!(options.is_valid());
     }
 
     #[test]
     fn is_valid_false() {
-        let options = Options::<3, 3, MockSeeder>::with_n_foods(9);
+        let options = Options::<3, 3>::with_mock_seeder(9, 0);
         assert!(!options.is_valid());
     }
 
     #[test]
     fn area() {
-        let options = Options::<3, 4, MockSeeder>::with_n_foods(1);
+        let options = Options::<3, 4>::with_mock_seeder(1, 0);
         assert_eq!(options.area(), 12);
     }
 
     #[test]
     fn n_non_empty() {
-        let options = Options::<3, 3, MockSeeder>::with_n_foods(1);
+        let options = Options::<3, 3>::with_mock_seeder(1, 0);
         assert_eq!(options.n_non_empty(), 2);
     }
 }
