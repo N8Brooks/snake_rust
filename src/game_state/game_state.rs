@@ -149,16 +149,6 @@ impl<const N_ROWS: usize, const N_COLS: usize> GameState<N_ROWS, N_COLS> {
     }
 }
 
-impl Velocity {
-    pub fn check_acceleration(&self, other: &Velocity) -> Result<(), InvalidDirection> {
-        if self.is_vertical() != other.is_vertical() {
-            Ok(())
-        } else {
-            Err(InvalidDirection)
-        }
-    }
-}
-
 #[cfg(test)]
 mod game_state_tests {
     use super::*;
@@ -176,6 +166,21 @@ mod game_state_tests {
         game_state.velocity = Velocity::from_direction(&Direction::Up);
         assert!(game_state.set_direction(Direction::Down).is_err());
     }
+}
+
+impl Velocity {
+    pub fn check_acceleration(&self, other: &Velocity) -> Result<(), InvalidDirection> {
+        if self.is_vertical() != other.is_vertical() {
+            Ok(())
+        } else {
+            Err(InvalidDirection)
+        }
+    }
+}
+
+#[cfg(test)]
+mod velocity_tests {
+    use crate::value_objects::Velocity;
 
     #[test]
     fn check_acceleration_ok() {
