@@ -1,14 +1,14 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub trait Seeder {
-    fn get_secs(&self) -> u64;
+    fn get_seed(&self) -> u64;
 }
 
 #[derive(Default)]
 pub struct SecondsSeeder;
 
 impl Seeder for SecondsSeeder {
-    fn get_secs(&self) -> u64 {
+    fn get_seed(&self) -> u64 {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("system time")
@@ -24,7 +24,7 @@ impl SecondsSeeder {
 pub struct MockSeeder(pub u64);
 
 impl Seeder for MockSeeder {
-    fn get_secs(&self) -> u64 {
+    fn get_seed(&self) -> u64 {
         self.0
     }
 }
@@ -35,11 +35,11 @@ mod tests {
 
     #[test]
     fn seconds_seeder_get_secs() {
-        SecondsSeeder::SECONDS_SEEDER.get_secs();
+        SecondsSeeder::SECONDS_SEEDER.get_seed();
     }
 
     #[test]
     fn mock_seeder_get_secs() {
-        assert_eq!(MockSeeder(0).get_secs(), 0);
+        assert_eq!(MockSeeder(0).get_seed(), 0);
     }
 }

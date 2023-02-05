@@ -1,6 +1,6 @@
 use super::seeder::*;
-use crate::data_transfer::{Cell, Direction};
-use crate::value_objects::{InvalidDirection, Position, Velocity};
+use crate::data_transfer::Cell;
+use crate::value_objects::{Position, Velocity};
 use std::collections::{HashSet, VecDeque};
 
 pub struct Options<const N_ROWS: usize, const N_COLS: usize> {
@@ -133,6 +133,9 @@ mod options_tests {
 }
 
 #[derive(Debug)]
+pub struct GameIsOver;
+
+#[derive(Debug)]
 pub struct GameState<const N_ROWS: usize, const N_COLS: usize> {
     velocity: Velocity,
     board: [[Cell; N_ROWS]; N_COLS],
@@ -141,11 +144,12 @@ pub struct GameState<const N_ROWS: usize, const N_COLS: usize> {
 }
 
 impl<const N_ROWS: usize, const N_COLS: usize> GameState<N_ROWS, N_COLS> {
-    pub fn set_direction(&mut self, direction: Direction) -> Result<(), InvalidDirection> {
-        let velocity = Velocity::from_direction(&direction);
-        self.velocity.check_acceleration(&velocity)?;
-        self.velocity = velocity;
-        Ok(())
+    pub fn iterate_turn(&mut self) -> Result<(), GameIsOver> {
+        todo!();
+    }
+
+    pub fn get_next_head(&mut self) -> Position {
+        todo!();
     }
 }
 
@@ -154,45 +158,5 @@ mod game_state_tests {
     use super::*;
 
     #[test]
-    fn set_direction_valid() {
-        let mut game_state = Options::<3, 3>::new(1).build().unwrap();
-        assert!(game_state.set_direction(Direction::Up).is_ok());
-        assert_eq!(game_state.velocity, Velocity(-1, 0));
-    }
-
-    #[test]
-    fn set_direction() {
-        let mut game_state = Options::<3, 3>::new(1).build().unwrap();
-        game_state.velocity = Velocity::from_direction(&Direction::Up);
-        assert!(game_state.set_direction(Direction::Down).is_err());
-    }
-}
-
-impl Velocity {
-    pub fn check_acceleration(&self, other: &Velocity) -> Result<(), InvalidDirection> {
-        if self.is_vertical() != other.is_vertical() {
-            Ok(())
-        } else {
-            Err(InvalidDirection)
-        }
-    }
-}
-
-#[cfg(test)]
-mod velocity_tests {
-    use crate::value_objects::Velocity;
-
-    #[test]
-    fn check_acceleration_ok() {
-        let v_0 = Velocity(1, 0);
-        let v_1 = Velocity(0, 1);
-        assert!(v_0.check_acceleration(&v_1).is_ok());
-    }
-
-    #[test]
-    fn check_acceleration_err() {
-        let v_0 = Velocity(1, 0);
-        let v_1 = Velocity(-1, 0);
-        assert!(v_0.check_acceleration(&v_1).is_err())
-    }
+    pub fn get_next_head() {}
 }
