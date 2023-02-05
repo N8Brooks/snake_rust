@@ -1,4 +1,4 @@
 mod controller;
 mod data_transfer;
-mod options;
+pub mod options;
 mod value_objects;

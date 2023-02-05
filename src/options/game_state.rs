@@ -1,17 +1,26 @@
-use super::seeder::{MockSeeder, SecondsSeeder, Seeder};
-use crate::data_transfer::Direction;
-use crate::{data_transfer::Cell, value_objects::Position};
+use super::seeder::*;
+use crate::data_transfer::Cell;
+use crate::value_objects::Position;
 use std::collections::{HashSet, VecDeque};
 
 pub struct Options<const N_ROWS: usize, const N_COLS: usize, T: Seeder> {
-    n_foods: usize,
-    seeder: T,
+    pub n_foods: usize,
+    pub seeder: T,
 }
 
-impl Options<3, 3, MockSeeder> {
-    fn tiny() -> Self {
+impl<const N_ROWS: usize, const N_COLS: usize> Options<N_ROWS, N_COLS, SecondsSeeder> {
+    pub fn with_n_foods(n_foods: usize) -> Self {
         Options {
-            n_foods: 1,
+            n_foods,
+            seeder: SecondsSeeder::SECONDS_SEEDER,
+        }
+    }
+}
+
+impl<const N_ROWS: usize, const N_COLS: usize> Options<N_ROWS, N_COLS, MockSeeder> {
+    pub fn with_n_foods(n_foods: usize) -> Self {
+        Options {
+            n_foods,
             seeder: MockSeeder(0),
         }
     }
@@ -56,8 +65,6 @@ pub struct InvalidOptions;
 
 #[cfg(test)]
 mod options_tests {
-    use std::cmp::Ordering;
-
     use super::*;
 
     const EXPECTED_BOARD: [[Cell; 3]; 3] = [
@@ -81,7 +88,7 @@ mod options_tests {
 
     #[test]
     fn build_with_valid() {
-        let options = Options::tiny();
+        let options = Options::<3, 3, MockSeeder>::with_n_foods(1);
         let game_state = options.build().unwrap();
         assert_eq!(game_state.board, EXPECTED_BOARD);
         let expected_empty = HashSet::from(EXPECTED_EMPTY);
@@ -95,7 +102,7 @@ mod options_tests {
 
     #[test]
     fn build_with_invalid() {
-        let mut options = Options::tiny();
+        let mut options = Options::<3, 3, MockSeeder>::with_n_foods(1);
         options.n_foods = 9;
         let game_state = options.build().unwrap_err();
         assert!(matches!(game_state, InvalidOptions));
@@ -103,27 +110,25 @@ mod options_tests {
 
     #[test]
     fn is_valid_true() {
-        let mut options = Options::tiny();
-        options.n_foods = 8;
+        let options = Options::<3, 3, MockSeeder>::with_n_foods(8);
         assert!(options.is_valid());
     }
 
     #[test]
     fn is_valid_false() {
-        let mut options = Options::tiny();
-        options.n_foods = 9;
+        let options = Options::<3, 3, MockSeeder>::with_n_foods(9);
         assert!(!options.is_valid());
     }
 
     #[test]
     fn area() {
-        let options = Options::tiny();
-        assert_eq!(options.area(), 9);
+        let options = Options::<3, 4, MockSeeder>::with_n_foods(1);
+        assert_eq!(options.area(), 12);
     }
 
     #[test]
     fn n_non_empty() {
-        let options = Options::tiny();
+        let options = Options::<3, 3, MockSeeder>::with_n_foods(1);
         assert_eq!(options.n_non_empty(), 2);
     }
 }

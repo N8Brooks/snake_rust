@@ -1,5 +1,3 @@
-use std::cmp::Ordering;
-
 #[derive(PartialEq, Hash, Eq, Debug)]
 pub struct Position(pub usize, pub usize);
 
