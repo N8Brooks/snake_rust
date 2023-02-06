@@ -2,7 +2,7 @@ use super::seeder::*;
 use crate::controller::Controller;
 use crate::data_transfer::Cell;
 use crate::value_objects::{Position, Velocity};
-use std::collections::{HashSet, VecDeque};
+use std::collections::VecDeque;
 
 pub struct Options<const N_ROWS: usize, const N_COLS: usize> {
     pub n_foods: usize,
@@ -36,7 +36,7 @@ impl<const N_ROWS: usize, const N_COLS: usize> Options<N_ROWS, N_COLS> {
             Ok(GameState {
                 velocity: Velocity(0, 0),
                 board,
-                empty: HashSet::from_iter(board.iter().enumerate().flat_map(|(i, row)| {
+                empty: Vec::from_iter(board.iter().enumerate().flat_map(|(i, row)| {
                     row.iter()
                         .enumerate()
                         .filter(|(_, cell)| matches!(cell, Cell::Empty))
@@ -101,12 +101,7 @@ mod options_tests {
         let game_state = options.build(controller).unwrap();
         assert_eq!(game_state.velocity, Velocity(0, 0));
         assert_eq!(game_state.board, EXPECTED_BOARD);
-        let expected_empty = HashSet::from(EXPECTED_EMPTY);
-        let empty_diff_count = game_state
-            .empty
-            .symmetric_difference(&expected_empty)
-            .count();
-        assert_eq!(empty_diff_count, 0);
+        assert_eq!(game_state.empty, Vec::from(EXPECTED_EMPTY));
         assert_eq!(game_state.snake, VecDeque::from(EXPECTED_SNAKE));
     }
 
@@ -152,7 +147,7 @@ pub struct GameIsOver;
 pub struct GameState<const N_ROWS: usize, const N_COLS: usize> {
     velocity: Velocity,
     board: [[Cell; N_ROWS]; N_COLS],
-    empty: HashSet<Position>,
+    empty: Vec<Position>,
     snake: VecDeque<Position>,
     controller: Box<dyn Controller>,
 }
