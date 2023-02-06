@@ -1,7 +1,14 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use rand::SeedableRng;
+use rand_chacha::ChaCha8Rng;
+
 pub trait Seeder {
     fn get_seed(&self) -> u64;
+
+    fn get_rng(&self) -> ChaCha8Rng {
+        ChaCha8Rng::seed_from_u64(self.get_seed())
+    }
 }
 
 #[derive(Default)]
