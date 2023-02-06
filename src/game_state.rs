@@ -1,6 +1,6 @@
 use super::seeder::*;
 use crate::controller::Controller;
-use crate::data_transfer::Cell;
+use crate::data_transfer::{Cell, Direction};
 use crate::value_objects::{Position, Velocity};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
@@ -40,42 +40,25 @@ impl<const N_ROWS: usize, const N_COLS: usize> Options<N_ROWS, N_COLS> {
     }
 
     fn get_game_state(&self, controller: Box<dyn Controller>) -> GameState<N_ROWS, N_COLS> {
-        let board = Options::get_board();
+        let board = Board::<N_ROWS, N_COLS>::default();
         let mut game_state = self.get_init_game_state(board, controller);
         self.add_foods(&mut game_state);
         game_state
     }
 
-    fn get_board() -> [[Cell; N_ROWS]; N_COLS] {
-        let mut board = [[Cell::Empty; N_ROWS]; N_COLS];
-        board[N_ROWS / 2][N_COLS / 2] = Cell::Snake {
-            entry: None,
-            exit: None,
-        };
-        board
-    }
-
     fn get_init_game_state(
         &self,
-        board: [[Cell; N_ROWS]; N_COLS],
+        board: Board<N_ROWS, N_COLS>,
         controller: Box<dyn Controller>,
     ) -> GameState<N_ROWS, N_COLS> {
+        let empty = board.get_empty();
         GameState {
             board,
-            empty: Options::get_empty(&board),
+            empty,
             snake: self.get_snake(),
             controller,
             rng: self.get_rng(),
         }
-    }
-
-    fn get_empty(board: &[[Cell; N_ROWS]; N_COLS]) -> Vec<Position> {
-        Vec::from_iter(board.iter().enumerate().flat_map(|(i, row)| {
-            row.iter()
-                .enumerate()
-                .filter(|(_, cell)| matches!(cell, Cell::Empty))
-                .map(move |(j, _)| Position(i, j))
-        }))
     }
 
     fn get_snake(&self) -> VecDeque<Position> {
@@ -148,7 +131,7 @@ mod options_tests {
             direction: Direction::Right,
         });
         let game_state = options.build(controller).unwrap();
-        assert_eq!(game_state.board, EXPECTED_BOARD);
+        assert_eq!(game_state.board, Board(EXPECTED_BOARD));
         assert_eq!(game_state.empty, Vec::from(EXPECTED_EMPTY));
         assert_eq!(game_state.snake, VecDeque::from(EXPECTED_SNAKE));
     }
@@ -196,7 +179,7 @@ pub struct MaxFoods;
 
 #[derive(Debug)]
 pub struct GameState<const N_ROWS: usize, const N_COLS: usize> {
-    board: [[Cell; N_ROWS]; N_COLS],
+    board: Board<N_ROWS, N_COLS>,
     empty: Vec<Position>,
     snake: VecDeque<Position>,
     controller: Box<dyn Controller>,
@@ -205,21 +188,12 @@ pub struct GameState<const N_ROWS: usize, const N_COLS: usize> {
 
 impl<const N_ROWS: usize, const N_COLS: usize> GameState<N_ROWS, N_COLS> {
     /// This builds a `GameState` from a board without checking for invariants
-    // fn from_board(
-    //     board: [[Cell; N_COLS]; N_ROWS],
-    //     controller: Box<dyn Controller>,
-    // ) -> GameState<N_ROWS, N_COLS> {
-    // }
-    //
-    // fn find_snake_head((i, row): (usize, &[Cell; N_COLS])) -> Option<(usize, usize)> {
-    //     row.iter().enumerate().find_map(|(j, &cell)| {
-    //         if cell == Cell::Snake(None) {
-    //             Some((i, j))
-    //         } else {
-    //             None
-    //         }
-    //     })
-    // }
+    fn from_board(
+        board: Board<N_ROWS, N_COLS>,
+        controller: Box<dyn Controller>,
+    ) -> GameState<N_ROWS, N_COLS> {
+        todo!();
+    }
 
     pub fn iterate_turn(&mut self) -> Result<(), GameIsOver> {
         todo!();
@@ -228,18 +202,7 @@ impl<const N_ROWS: usize, const N_COLS: usize> GameState<N_ROWS, N_COLS> {
     fn get_next_head(&mut self) -> Position {
         let direction = self.controller.get_direction();
         let position = self.get_head();
-        let velocity = direction.as_velocity();
-        let i = position
-            .0
-            .checked_add_signed(velocity.0)
-            .unwrap_or(N_ROWS - Velocity::DEFAULT_MAGNITUDE)
-            % N_ROWS;
-        let j = position
-            .1
-            .checked_add_signed(velocity.1)
-            .unwrap_or(N_COLS - Velocity::DEFAULT_MAGNITUDE)
-            % N_COLS;
-        Position(i, j)
+        self.board.move_in(position, &direction)
     }
 
     fn get_head(&self) -> &Position {
@@ -252,7 +215,7 @@ impl<const N_ROWS: usize, const N_COLS: usize> GameState<N_ROWS, N_COLS> {
         } else {
             let foods_index = self.rng.gen_range(0..self.empty.len());
             let Position(i, j) = self.empty.swap_remove(foods_index);
-            self.board[i][j] = Cell::Foods;
+            self.board.0[i][j] = Cell::Foods;
             Ok(())
         }
     }
@@ -264,35 +227,48 @@ mod game_state_tests {
     use crate::controller::MockController;
     use crate::data_transfer::Direction;
 
-    // const INPUT_BOARD: [[Cell; 3]; 3] = [
-    //     [Cell::Empty, Cell::Foods, Cell::Empty],
-    //     [Cell::Empty, Cell::Snake(None), Cell::Empty],
-    //     [
-    //         Cell::Snake(Some(Direction::Right)),
-    //         Cell::Snake(Some(Direction::Up)),
-    //         Cell::Empty,
-    //     ],
-    // ];
-    //
-    // const EXPECTED_EMPTY: [Position; 5] = [
-    //     Position(0, 0),
-    //     Position(0, 2),
-    //     Position(1, 0),
-    //     Position(1, 2),
-    //     Position(2, 2),
-    // ];
-    //
-    // const EXPECTED_SNAKE: [Position; 3] = [Position(1, 1), Position(2, 1), Position(2, 0)];
-    //
-    // #[test]
-    // pub fn from_board() {
-    //     let controller = Box::new(MockController {
-    //         direction: Direction::Right,
-    //     });
-    //     let game_state = GameState::from_board(INPUT_BOARD, controller);
-    //     assert_eq!(game_state.empty, EXPECTED_EMPTY);
-    //     assert_eq!(game_state.snake, VecDeque::from(EXPECTED_SNAKE));
-    // }
+    const INPUT_BOARD: [[Cell; 3]; 3] = [
+        [Cell::Empty, Cell::Foods, Cell::Empty],
+        [
+            Cell::Empty,
+            Cell::Snake {
+                entry: Some(Direction::Down),
+                exit: None,
+            },
+            Cell::Empty,
+        ],
+        [
+            Cell::Snake {
+                entry: None,
+                exit: Some(Direction::Up),
+            },
+            Cell::Snake {
+                entry: Some(Direction::Left),
+                exit: Some(Direction::Right),
+            },
+            Cell::Empty,
+        ],
+    ];
+
+    const EXPECTED_EMPTY: [Position; 5] = [
+        Position(0, 0),
+        Position(0, 2),
+        Position(1, 0),
+        Position(1, 2),
+        Position(2, 2),
+    ];
+
+    const EXPECTED_SNAKE: [Position; 3] = [Position(1, 1), Position(2, 1), Position(2, 0)];
+
+    #[test]
+    pub fn from_board() {
+        let controller = Box::new(MockController {
+            direction: Direction::Right,
+        });
+        let game_state = GameState::from_board(Board(INPUT_BOARD), controller);
+        assert_eq!(game_state.empty, EXPECTED_EMPTY);
+        assert_eq!(game_state.snake, VecDeque::from(EXPECTED_SNAKE));
+    }
 
     #[test]
     pub fn get_next_head() {
@@ -323,5 +299,133 @@ mod game_state_tests {
         });
         let game_state = options.build(controller).unwrap();
         assert_eq!(*game_state.get_head(), Position(1, 1));
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Board<const N_ROWS: usize, const N_COLS: usize>(pub [[Cell; N_COLS]; N_ROWS]);
+
+impl<const N_ROWS: usize, const N_COLS: usize> Default for Board<N_ROWS, N_COLS> {
+    fn default() -> Self {
+        let mut board = [[Cell::Empty; N_COLS]; N_ROWS];
+        board[N_ROWS / 2][N_COLS / 2] = Cell::Snake {
+            entry: None,
+            exit: None,
+        };
+        Board(board)
+    }
+}
+
+impl<const N_ROWS: usize, const N_COLS: usize> Board<N_ROWS, N_COLS> {
+    pub fn get_empty(&self) -> Vec<Position> {
+        Vec::from_iter(self.0.iter().enumerate().flat_map(|(i, row)| {
+            row.iter()
+                .enumerate()
+                .filter(|(_, cell)| matches!(cell, Cell::Empty))
+                .map(move |(j, _)| Position(i, j))
+        }))
+    }
+
+    pub fn get_snake(&self) -> VecDeque<Position> {
+        let mut position = self.find_snake_head().expect("snake head");
+        let mut snake = VecDeque::from([position]);
+        while let Cell::Snake {
+            entry: Some(direction),
+            exit: _,
+        } = self.at(&position)
+        {
+            position = self.move_in(&position, &direction);
+            snake.push_back(position);
+        }
+        snake
+    }
+
+    pub fn at(&self, position: &Position) -> Cell {
+        let Position(i, j) = position;
+        self.0[*i][*j]
+    }
+
+    fn find_snake_head(&self) -> Option<Position> {
+        self.0
+            .iter()
+            .enumerate()
+            .find_map(|item| self.find_snake_head_from_row(item))
+    }
+
+    fn find_snake_head_from_row(&self, (i, row): (usize, &[Cell; N_COLS])) -> Option<Position> {
+        row.iter().enumerate().find_map(|(j, &cell)| {
+            if matches!(cell, Cell::Snake { exit: None, .. }) {
+                Some(Position(i, j))
+            } else {
+                None
+            }
+        })
+    }
+
+    pub fn move_in(&self, position: &Position, direction: &Direction) -> Position {
+        let velocity = direction.as_velocity();
+        let i = position
+            .0
+            .checked_add_signed(velocity.0)
+            .unwrap_or(N_ROWS - Velocity::DEFAULT_MAGNITUDE)
+            % N_ROWS;
+        let j = position
+            .1
+            .checked_add_signed(velocity.1)
+            .unwrap_or(N_COLS - Velocity::DEFAULT_MAGNITUDE)
+            % N_COLS;
+        Position(i, j)
+    }
+}
+
+#[cfg(test)]
+mod board_tests {
+    use super::*;
+
+    const INPUT_BOARD: [[Cell; 3]; 3] = [
+        [Cell::Empty, Cell::Foods, Cell::Empty],
+        [
+            Cell::Empty,
+            Cell::Snake {
+                entry: Some(Direction::Down),
+                exit: None,
+            },
+            Cell::Empty,
+        ],
+        [
+            Cell::Snake {
+                entry: None,
+                exit: Some(Direction::Up),
+            },
+            Cell::Snake {
+                entry: Some(Direction::Left),
+                exit: Some(Direction::Right),
+            },
+            Cell::Empty,
+        ],
+    ];
+
+    const EXPECTED_EMPTY: [Position; 5] = [
+        Position(0, 0),
+        Position(0, 2),
+        Position(1, 0),
+        Position(1, 2),
+        Position(2, 2),
+    ];
+
+    const EXPECTED_SNAKE: [Position; 3] = [Position(1, 1), Position(2, 1), Position(2, 0)];
+
+    #[test]
+    fn get_empty() {
+        let board = Board(INPUT_BOARD);
+        let empty = board.get_empty();
+        assert_eq!(empty, EXPECTED_EMPTY);
+    }
+
+    #[test]
+    fn parse_snake() {
+        let board = Board(INPUT_BOARD);
+        let snake = board.get_snake();
+        assert_eq!(snake, EXPECTED_SNAKE);
     }
 }

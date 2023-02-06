@@ -1,6 +1,6 @@
 use crate::data_transfer::Direction;
 
-#[derive(PartialEq, Hash, Eq, Debug)]
+#[derive(PartialEq, Hash, Eq, Debug, Copy, Clone)]
 pub struct Position(pub usize, pub usize);
 
 #[derive(PartialEq, Debug)]
