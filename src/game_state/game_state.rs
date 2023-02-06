@@ -36,7 +36,7 @@ impl<const N_ROWS: usize, const N_COLS: usize> GameState<N_ROWS, N_COLS> {
     }
 
     /// This builds a `GameState` from a board without checking for invariants
-    fn from_board(
+    pub fn from_board(
         board: Board<N_ROWS, N_COLS>,
         controller: Box<dyn Controller>,
         rng: ChaCha8Rng,
