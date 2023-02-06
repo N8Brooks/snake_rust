@@ -65,3 +65,9 @@ pub enum Cell {
     Foods,
     Snake(Option<Direction>),
 }
+
+#[derive(Debug)]
+pub enum Status {
+    Ongoing,
+    Over { is_won: bool },
+}
