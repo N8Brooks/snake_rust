@@ -2,6 +2,8 @@ use super::seeder::*;
 use crate::controller::Controller;
 use crate::data_transfer::Cell;
 use crate::value_objects::{Position, Velocity};
+use rand::{Rng, SeedableRng};
+use rand_chacha::ChaCha8Rng;
 use std::collections::VecDeque;
 
 pub struct Options<const N_ROWS: usize, const N_COLS: usize> {
@@ -30,23 +32,61 @@ impl<const N_ROWS: usize, const N_COLS: usize> Options<N_ROWS, N_COLS> {
         &self,
         controller: Box<dyn Controller>,
     ) -> Result<GameState<N_ROWS, N_COLS>, InvalidOptions> {
-        let mut board = [[Cell::Empty; N_ROWS]; N_COLS];
-        board[N_ROWS / 2][N_COLS / 2] = Cell::Snake(None);
         if self.is_valid() {
-            Ok(GameState {
-                velocity: Velocity(0, 0),
-                board,
-                empty: Vec::from_iter(board.iter().enumerate().flat_map(|(i, row)| {
-                    row.iter()
-                        .enumerate()
-                        .filter(|(_, cell)| matches!(cell, Cell::Empty))
-                        .map(move |(j, _)| Position(i, j))
-                })),
-                snake: VecDeque::from([Position(N_ROWS / 2, N_COLS / 2)]),
-                controller,
-            })
+            Ok(self.get_game_state(controller))
         } else {
             Err(InvalidOptions)
+        }
+    }
+
+    fn get_game_state(&self, controller: Box<dyn Controller>) -> GameState<N_ROWS, N_COLS> {
+        let board = Options::get_board();
+        let mut game_state = self.get_init_game_state(board, controller);
+        self.add_foods(&mut game_state);
+        game_state
+    }
+
+    fn get_board() -> [[Cell; N_ROWS]; N_COLS] {
+        let mut board = [[Cell::Empty; N_ROWS]; N_COLS];
+        board[N_ROWS / 2][N_COLS / 2] = Cell::Snake(None);
+        board
+    }
+
+    fn get_init_game_state(
+        &self,
+        board: [[Cell; N_ROWS]; N_COLS],
+        controller: Box<dyn Controller>,
+    ) -> GameState<N_ROWS, N_COLS> {
+        GameState {
+            board,
+            empty: Options::get_empty(&board),
+            snake: self.get_snake(),
+            controller,
+            rng: self.get_rng(),
+        }
+    }
+
+    fn get_empty(board: &[[Cell; N_ROWS]; N_COLS]) -> Vec<Position> {
+        Vec::from_iter(board.iter().enumerate().flat_map(|(i, row)| {
+            row.iter()
+                .enumerate()
+                .filter(|(_, cell)| matches!(cell, Cell::Empty))
+                .map(move |(j, _)| Position(i, j))
+        }))
+    }
+
+    fn get_snake(&self) -> VecDeque<Position> {
+        VecDeque::from([Position(N_ROWS / 2, N_COLS / 2)])
+    }
+
+    fn get_rng(&self) -> ChaCha8Rng {
+        let seed = self.seeder.get_seed();
+        ChaCha8Rng::seed_from_u64(seed)
+    }
+
+    fn add_foods(&self, game_state: &mut GameState<N_ROWS, N_COLS>) {
+        for _ in 0..self.n_foods {
+            game_state.add_food().expect("room for foods");
         }
     }
 
@@ -74,20 +114,19 @@ mod options_tests {
     use crate::data_transfer::Direction;
 
     const EXPECTED_BOARD: [[Cell; 3]; 3] = [
-        [Cell::Empty; 3],
+        [Cell::Foods, Cell::Empty, Cell::Empty],
         [Cell::Empty, Cell::Snake(None), Cell::Empty],
         [Cell::Empty; 3],
     ];
 
-    const EXPECTED_EMPTY: [Position; 8] = [
-        Position(0, 0),
+    const EXPECTED_EMPTY: [Position; 7] = [
+        Position(2, 2),
         Position(0, 1),
         Position(0, 2),
         Position(1, 0),
         Position(1, 2),
         Position(2, 0),
         Position(2, 1),
-        Position(2, 2),
     ];
 
     const EXPECTED_SNAKE: [Position; 1] = [Position(1, 1)];
@@ -99,7 +138,6 @@ mod options_tests {
             direction: Direction::Right,
         });
         let game_state = options.build(controller).unwrap();
-        assert_eq!(game_state.velocity, Velocity(0, 0));
         assert_eq!(game_state.board, EXPECTED_BOARD);
         assert_eq!(game_state.empty, Vec::from(EXPECTED_EMPTY));
         assert_eq!(game_state.snake, VecDeque::from(EXPECTED_SNAKE));
@@ -144,12 +182,15 @@ mod options_tests {
 pub struct GameIsOver;
 
 #[derive(Debug)]
+pub struct MaxFoods;
+
+#[derive(Debug)]
 pub struct GameState<const N_ROWS: usize, const N_COLS: usize> {
-    velocity: Velocity,
     board: [[Cell; N_ROWS]; N_COLS],
     empty: Vec<Position>,
     snake: VecDeque<Position>,
     controller: Box<dyn Controller>,
+    rng: ChaCha8Rng,
 }
 
 impl<const N_ROWS: usize, const N_COLS: usize> GameState<N_ROWS, N_COLS> {
@@ -176,6 +217,17 @@ impl<const N_ROWS: usize, const N_COLS: usize> GameState<N_ROWS, N_COLS> {
 
     fn get_head(&self) -> &Position {
         self.snake.front().expect("non empty snake")
+    }
+
+    fn add_food(&mut self) -> Result<(), MaxFoods> {
+        if self.empty.is_empty() {
+            Err(MaxFoods)
+        } else {
+            let foods_index = self.rng.gen_range(0..self.empty.len());
+            let Position(i, j) = self.empty.swap_remove(foods_index);
+            self.board[i][j] = Cell::Foods;
+            Ok(())
+        }
     }
 }
 
