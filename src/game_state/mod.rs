@@ -265,17 +265,6 @@ mod game_state_tests {
         assert_eq!(game_state.get_next_head(), Position(1, 2));
     }
 
-    // #[test]
-    // pub fn get_next_head_wrapping() {
-    //     let options = Options::<3, 3>::with_mock_seeder(1, 0);
-    //     let controller = Box::new(MockController {
-    //         direction: Direction::Right,
-    //     });
-    //     let mut game_state = options.build(controller).unwrap();
-    //     game_state.iterate_turn();
-    //     game_state.head = assert_eq!(game_state.get_next_head(), Position(1, 0));
-    // }
-
     #[test]
     pub fn get_head() {
         let options = Options::<3, 3>::with_mock_seeder(1, 0);
