@@ -194,6 +194,23 @@ pub struct GameState<const N_ROWS: usize, const N_COLS: usize> {
 }
 
 impl<const N_ROWS: usize, const N_COLS: usize> GameState<N_ROWS, N_COLS> {
+    /// This builds a `GameState` from a board without checking for invariants
+    // fn from_board(
+    //     board: [[Cell; N_COLS]; N_ROWS],
+    //     controller: Box<dyn Controller>,
+    // ) -> GameState<N_ROWS, N_COLS> {
+    // }
+
+    fn find_snake_head((i, row): (usize, &[Cell; N_COLS])) -> Option<(usize, usize)> {
+        row.iter().enumerate().find_map(|(j, &cell)| {
+            if cell == Cell::Snake(None) {
+                Some((i, j))
+            } else {
+                None
+            }
+        })
+    }
+
     pub fn iterate_turn(&mut self) -> Result<(), GameIsOver> {
         todo!();
     }
@@ -236,6 +253,36 @@ mod game_state_tests {
     use super::*;
     use crate::controller::MockController;
     use crate::data_transfer::Direction;
+
+    // const INPUT_BOARD: [[Cell; 3]; 3] = [
+    //     [Cell::Empty, Cell::Foods, Cell::Empty],
+    //     [Cell::Empty, Cell::Snake(None), Cell::Empty],
+    //     [
+    //         Cell::Snake(Some(Direction::Right)),
+    //         Cell::Snake(Some(Direction::Up)),
+    //         Cell::Empty,
+    //     ],
+    // ];
+    //
+    // const EXPECTED_EMPTY: [Position; 5] = [
+    //     Position(0, 0),
+    //     Position(0, 2),
+    //     Position(1, 0),
+    //     Position(1, 2),
+    //     Position(2, 2),
+    // ];
+    //
+    // const EXPECTED_SNAKE: [Position; 3] = [Position(1, 1), Position(2, 1), Position(2, 0)];
+    //
+    // #[test]
+    // pub fn from_board() {
+    //     let controller = Box::new(MockController {
+    //         direction: Direction::Right,
+    //     });
+    //     let game_state = GameState::from_board(INPUT_BOARD, controller);
+    //     assert_eq!(game_state.empty, EXPECTED_EMPTY);
+    //     assert_eq!(game_state.snake, VecDeque::from(EXPECTED_SNAKE));
+    // }
 
     #[test]
     pub fn get_next_head() {
