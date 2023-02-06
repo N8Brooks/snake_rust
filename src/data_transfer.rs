@@ -63,7 +63,11 @@ pub enum Plane {
 pub enum Cell {
     Empty,
     Foods,
-    Snake(Option<Direction>),
+    /// A snake segment with an entra
+    Snake {
+        entry: Option<Direction>,
+        exit: Option<Direction>,
+    },
 }
 
 #[derive(Debug)]

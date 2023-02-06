@@ -48,7 +48,10 @@ impl<const N_ROWS: usize, const N_COLS: usize> Options<N_ROWS, N_COLS> {
 
     fn get_board() -> [[Cell; N_ROWS]; N_COLS] {
         let mut board = [[Cell::Empty; N_ROWS]; N_COLS];
-        board[N_ROWS / 2][N_COLS / 2] = Cell::Snake(None);
+        board[N_ROWS / 2][N_COLS / 2] = Cell::Snake {
+            entry: None,
+            exit: None,
+        };
         board
     }
 
@@ -115,7 +118,14 @@ mod options_tests {
 
     const EXPECTED_BOARD: [[Cell; 3]; 3] = [
         [Cell::Foods, Cell::Empty, Cell::Empty],
-        [Cell::Empty, Cell::Snake(None), Cell::Empty],
+        [
+            Cell::Empty,
+            Cell::Snake {
+                entry: None,
+                exit: None,
+            },
+            Cell::Empty,
+        ],
         [Cell::Empty; 3],
     ];
 
@@ -200,16 +210,16 @@ impl<const N_ROWS: usize, const N_COLS: usize> GameState<N_ROWS, N_COLS> {
     //     controller: Box<dyn Controller>,
     // ) -> GameState<N_ROWS, N_COLS> {
     // }
-
-    fn find_snake_head((i, row): (usize, &[Cell; N_COLS])) -> Option<(usize, usize)> {
-        row.iter().enumerate().find_map(|(j, &cell)| {
-            if cell == Cell::Snake(None) {
-                Some((i, j))
-            } else {
-                None
-            }
-        })
-    }
+    //
+    // fn find_snake_head((i, row): (usize, &[Cell; N_COLS])) -> Option<(usize, usize)> {
+    //     row.iter().enumerate().find_map(|(j, &cell)| {
+    //         if cell == Cell::Snake(None) {
+    //             Some((i, j))
+    //         } else {
+    //             None
+    //         }
+    //     })
+    // }
 
     pub fn iterate_turn(&mut self) -> Result<(), GameIsOver> {
         todo!();
