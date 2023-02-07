@@ -61,9 +61,7 @@ mod options_tests {
     #[test]
     fn build_with_invalid() {
         let options = Options::<3, 3>::with_mock_seeder(9, 0);
-        let controller = Box::new(MockController {
-            direction: Direction::Right,
-        });
+        let controller = Box::new(MockController(Direction::Right));
         let game_state = options.build(controller).unwrap_err();
         assert!(matches!(game_state, InvalidOptions));
     }

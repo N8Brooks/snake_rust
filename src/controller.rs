@@ -11,13 +11,11 @@ pub trait Controller: Debug {
 }
 
 #[derive(Debug)]
-pub struct MockController {
-    pub direction: Direction,
-}
+pub struct MockController(pub Direction);
 
 impl Controller for MockController {
     fn get_direction(&mut self) -> Direction {
-        self.direction
+        self.0
     }
 }
 
@@ -28,7 +26,7 @@ mod mock_controller_tests {
     #[test]
     fn get_direction() {
         let direction = Direction::Up;
-        let mut controller = MockController { direction };
+        let mut controller = MockController(direction);
         assert_eq!(controller.get_direction(), direction);
     }
 }

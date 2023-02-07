@@ -31,6 +31,15 @@ impl<const N_ROWS: usize, const N_COLS: usize> Board<N_ROWS, N_COLS> {
         }))
     }
 
+    pub fn get_foods(&self) -> Vec<Position> {
+        Vec::from_iter(self.0.iter().enumerate().flat_map(|(i, row)| {
+            row.iter()
+                .enumerate()
+                .filter(|(_, cell)| matches!(cell, Cell::Foods))
+                .map(move |(j, _)| Position(i, j))
+        }))
+    }
+
     pub fn get_snake(&self) -> VecDeque<Position> {
         let mut position = self.find_snake_head().expect("snake head");
         let mut snake = VecDeque::from([position]);

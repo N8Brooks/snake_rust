@@ -70,7 +70,7 @@ pub enum Cell {
     },
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Status {
     Ongoing,
     Over { is_won: bool },
