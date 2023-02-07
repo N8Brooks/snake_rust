@@ -4,7 +4,7 @@ use crate::data_transfer::{Cell, Direction};
 use crate::value_objects::{Position, Velocity};
 
 #[derive(Debug, PartialEq)]
-pub struct Board<const N_ROWS: usize, const N_COLS: usize>(pub [[Cell; N_COLS]; N_ROWS]);
+pub struct Board<const N_ROWS: usize, const N_COLS: usize>([[Cell; N_COLS]; N_ROWS]);
 
 impl<const N_ROWS: usize, const N_COLS: usize> Default for Board<N_ROWS, N_COLS> {
     fn default() -> Self {
@@ -18,6 +18,10 @@ impl<const N_ROWS: usize, const N_COLS: usize> Default for Board<N_ROWS, N_COLS>
 }
 
 impl<const N_ROWS: usize, const N_COLS: usize> Board<N_ROWS, N_COLS> {
+    pub fn new(board: [[Cell; N_COLS]; N_ROWS]) -> Self {
+        Board(board)
+    }
+
     pub fn get_empty(&self) -> Vec<Position> {
         Vec::from_iter(self.0.iter().enumerate().flat_map(|(i, row)| {
             row.iter()
@@ -44,6 +48,11 @@ impl<const N_ROWS: usize, const N_COLS: usize> Board<N_ROWS, N_COLS> {
     pub fn at(&self, position: &Position) -> Cell {
         let Position(i, j) = position;
         self.0[*i][*j]
+    }
+
+    pub fn at_mut(&mut self, position: &Position) -> &mut Cell {
+        let Position(i, j) = position;
+        &mut self.0[*i][*j]
     }
 
     fn find_snake_head(&self) -> Option<Position> {
@@ -118,15 +127,31 @@ mod tests {
 
     #[test]
     fn get_empty() {
-        let board = Board(INPUT_BOARD);
+        let board = Board::new(INPUT_BOARD);
         let empty = board.get_empty();
         assert_eq!(empty, EXPECTED_EMPTY);
     }
 
     #[test]
     fn parse_snake() {
-        let board = Board(INPUT_BOARD);
+        let board = Board::new(INPUT_BOARD);
         let snake = board.get_snake();
         assert_eq!(snake, EXPECTED_SNAKE);
+    }
+
+    #[test]
+    fn at() {
+        let board = Board::new(INPUT_BOARD);
+        let position = Position(0, 1);
+        let cell = board.at(&position);
+        assert_eq!(cell, Cell::Foods);
+    }
+
+    #[test]
+    fn at_mut() {
+        let mut board = Board::new(INPUT_BOARD);
+        let position = Position(2, 2);
+        let cell = *board.at_mut(&position);
+        assert_eq!(cell, Cell::Empty);
     }
 }

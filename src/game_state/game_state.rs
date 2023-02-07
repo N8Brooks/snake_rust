@@ -71,8 +71,8 @@ impl<const N_ROWS: usize, const N_COLS: usize> GameState<N_ROWS, N_COLS> {
             Err(MaxFoods)
         } else {
             let foods_index = self.rng.gen_range(0..self.empty.len());
-            let Position(i, j) = self.empty.swap_remove(foods_index);
-            self.board.0[i][j] = Cell::Foods;
+            let position = self.empty.swap_remove(foods_index);
+            *self.board.at_mut(&position) = Cell::Foods;
             Ok(())
         }
     }
@@ -89,7 +89,7 @@ mod tests {
 
     #[test]
     pub fn from_board() {
-        let board = Board([[Cell::Snake {
+        let board = Board::new([[Cell::Snake {
             entry: None,
             exit: None,
         }]]);
@@ -185,7 +185,7 @@ mod options_tests {
             direction: Direction::Right,
         });
         let game_state = options.build(controller).unwrap();
-        assert_eq!(game_state.board, Board(EXPECTED_BOARD));
+        assert_eq!(game_state.board, Board::new(EXPECTED_BOARD));
         assert_eq!(game_state.empty, Vec::from(EXPECTED_EMPTY));
         assert_eq!(game_state.snake, VecDeque::from(EXPECTED_SNAKE));
     }
