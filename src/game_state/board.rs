@@ -8,12 +8,30 @@ pub struct Board<const N_ROWS: usize, const N_COLS: usize>([[Cell; N_COLS]; N_RO
 
 impl<const N_ROWS: usize, const N_COLS: usize> Default for Board<N_ROWS, N_COLS> {
     fn default() -> Self {
-        let mut board = [[Cell::Empty; N_COLS]; N_ROWS];
-        board[N_ROWS / 2][N_COLS / 2] = Cell::Snake {
-            entry: None,
-            exit: None,
-        };
-        Board(board)
+        let mut empty_index = 0;
+        let board_0 = (0..N_ROWS)
+            .map(|i| {
+                (0..N_COLS)
+                    .map(|j| {
+                        if i == N_ROWS / 2 && j == N_COLS / 2 {
+                            Cell::Snake {
+                                entry: None,
+                                exit: None,
+                            }
+                        } else {
+                            let empty = Cell::Empty(empty_index);
+                            empty_index += 1;
+                            empty
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .try_into()
+                    .unwrap()
+            })
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap();
+        Board(board_0)
     }
 }
 
@@ -26,7 +44,7 @@ impl<const N_ROWS: usize, const N_COLS: usize> Board<N_ROWS, N_COLS> {
         Vec::from_iter(self.0.iter().enumerate().flat_map(|(i, row)| {
             row.iter()
                 .enumerate()
-                .filter(|(_, cell)| matches!(cell, Cell::Empty))
+                .filter(|(_, cell)| matches!(cell, Cell::Empty(_)))
                 .map(move |(j, _)| Position(i, j))
         }))
     }
@@ -35,7 +53,7 @@ impl<const N_ROWS: usize, const N_COLS: usize> Board<N_ROWS, N_COLS> {
         Vec::from_iter(self.0.iter().enumerate().flat_map(|(i, row)| {
             row.iter()
                 .enumerate()
-                .filter(|(_, cell)| matches!(cell, Cell::Foods))
+                .filter(|(_, cell)| matches!(cell, Cell::Foods(_)))
                 .map(move |(j, _)| Position(i, j))
         }))
     }
@@ -102,14 +120,14 @@ mod tests {
     use super::*;
 
     const INPUT_BOARD: [[Cell; 3]; 3] = [
-        [Cell::Empty, Cell::Foods, Cell::Empty],
+        [Cell::Empty(0), Cell::Foods(0), Cell::Empty(1)],
         [
-            Cell::Empty,
+            Cell::Empty(2),
             Cell::Snake {
                 entry: Some(Direction::Down),
                 exit: None,
             },
-            Cell::Empty,
+            Cell::Empty(3),
         ],
         [
             Cell::Snake {
@@ -120,7 +138,7 @@ mod tests {
                 entry: Some(Direction::Left),
                 exit: Some(Direction::Right),
             },
-            Cell::Empty,
+            Cell::Empty(4),
         ],
     ];
 
@@ -153,7 +171,7 @@ mod tests {
         let board = Board::new(INPUT_BOARD);
         let position = Position(0, 1);
         let cell = board.at(&position);
-        assert_eq!(cell, Cell::Foods);
+        assert_eq!(cell, Cell::Foods(0));
     }
 
     #[test]
@@ -161,6 +179,6 @@ mod tests {
         let mut board = Board::new(INPUT_BOARD);
         let position = Position(2, 2);
         let cell = *board.at_mut(&position);
-        assert_eq!(cell, Cell::Empty);
+        assert_eq!(cell, Cell::Empty(4));
     }
 }

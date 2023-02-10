@@ -61,8 +61,8 @@ pub enum Plane {
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Cell {
-    Empty,
-    Foods,
+    Empty(usize),
+    Foods(usize),
     /// A snake segment with an entra
     Snake {
         entry: Option<Direction>,

@@ -55,8 +55,8 @@ impl<const N_ROWS: usize, const N_COLS: usize> GameState<N_ROWS, N_COLS> {
     pub fn iterate_turn(&mut self) -> Status {
         let head = self.get_next_head();
         match self.board.at(&head) {
-            Cell::Empty => todo!(),
-            Cell::Foods => todo!(),
+            Cell::Empty(_empty_index) => todo!(),
+            Cell::Foods(_foods_index) => todo!(),
             Cell::Snake { .. } => Status::Over { is_won: false },
         }
     }
@@ -75,9 +75,15 @@ impl<const N_ROWS: usize, const N_COLS: usize> GameState<N_ROWS, N_COLS> {
         if self.empty.is_empty() {
             Err(MaxFoods)
         } else {
-            let foods_index = self.rng.gen_range(0..self.empty.len());
-            let position = self.empty.swap_remove(foods_index);
-            *self.board.at_mut(&position) = Cell::Foods;
+            let empty_index = self.rng.gen_range(0..self.empty.len());
+            let position = self.empty.swap_remove(empty_index);
+            if empty_index != self.empty.len() {
+                let position = self.empty[empty_index];
+                *self.board.at_mut(&position) = Cell::Empty(empty_index);
+            }
+            let foods_index = self.foods.len();
+            *self.board.at_mut(&position) = Cell::Foods(foods_index);
+            self.foods.push(position);
             Ok(())
         }
     }
@@ -117,13 +123,14 @@ mod tests {
                 entry: Some(Direction::Left),
                 exit: None,
             },
-            Cell::Empty,
+            Cell::Empty(0),
         ],
     ];
 
     impl<const N_ROWS: usize, const N_COLS: usize> GameState<N_ROWS, N_COLS> {
-        fn is_empty(&self, position: &Position) -> bool {
-            self.board.at(position) == Cell::Empty
+        fn is_empty(&self, position: &Position, empty_index: usize) -> bool {
+            self.board.at(position) == Cell::Empty(empty_index)
+                && self.empty[empty_index] == *position
                 && self.empty.contains(position)
                 && !self.foods.contains(position)
                 && !self.snake.contains(position)
@@ -141,8 +148,9 @@ mod tests {
                 && self.snake.contains(position)
         }
 
-        fn is_foods(&self, position: &Position) -> bool {
-            self.board.at(position) == Cell::Foods
+        fn is_foods(&self, position: &Position, foods_index: usize) -> bool {
+            self.board.at(position) == Cell::Empty(foods_index)
+                && self.empty[foods_index] == *position
                 && !self.empty.contains(position)
                 && self.foods.contains(position)
                 && !self.snake.contains(position)
@@ -183,7 +191,7 @@ mod tests {
         let controller = Box::new(MockController(Direction::Right));
         let mut game_state = Options::<3, 3>::new(0).build(controller).unwrap();
         assert_eq!(game_state.iterate_turn(), Status::Ongoing);
-        assert!(game_state.is_empty(&Position(1, 1)));
+        assert!(game_state.is_empty(&Position(1, 1), 7));
         assert!(game_state.is_snake_with_directions(&Position(1, 2), None, None));
     }
 
@@ -192,11 +200,11 @@ mod tests {
         let controller = Box::new(MockController(Direction::Down));
         let mut game_state = Options::<3, 3>::new(3).build(controller).unwrap();
         let new_foods_position = Position(0, 1);
-        assert!(game_state.is_empty(&new_foods_position));
+        assert!(game_state.is_empty(&new_foods_position, 7));
         assert_eq!(game_state.iterate_turn(), Status::Ongoing);
         assert!(game_state.is_snake_with_directions(&Position(1, 1), None, Some(Direction::Down)));
         assert!(game_state.is_snake_with_directions(&Position(1, 2), Some(Direction::Up), None));
-        assert!(game_state.is_foods(&new_foods_position));
+        assert!(game_state.is_foods(&new_foods_position, 7));
     }
 
     #[test]
@@ -249,16 +257,16 @@ mod options_tests {
     use super::*;
 
     const EXPECTED_BOARD: [[Cell; 3]; 3] = [
-        [Cell::Foods, Cell::Empty, Cell::Empty],
+        [Cell::Foods(0), Cell::Empty(1), Cell::Empty(2)],
         [
-            Cell::Empty,
+            Cell::Empty(3),
             Cell::Snake {
                 entry: None,
                 exit: None,
             },
-            Cell::Empty,
+            Cell::Empty(4),
         ],
-        [Cell::Empty; 3],
+        [Cell::Empty(5), Cell::Empty(6), Cell::Empty(0)],
     ];
 
     const EXPECTED_EMPTY: [Position; 7] = [
