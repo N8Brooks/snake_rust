@@ -19,6 +19,15 @@ impl Direction {
             Direction::Down => Velocity(1, 0),
         }
     }
+
+    pub fn opposite(&self) -> Direction {
+        match self {
+            Direction::Right => Direction::Left,
+            Direction::Up => Direction::Down,
+            Direction::Left => Direction::Right,
+            Direction::Down => Direction::Up,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -31,5 +40,13 @@ mod direction_tests {
         assert_eq!(Direction::Up.as_velocity(), Velocity(-1, 0));
         assert_eq!(Direction::Left.as_velocity(), Velocity(0, -1));
         assert_eq!(Direction::Down.as_velocity(), Velocity(1, 0));
+    }
+
+    #[test]
+    fn opposite() {
+        assert_eq!(Direction::Right.opposite(), Direction::Left);
+        assert_eq!(Direction::Up.opposite(), Direction::Down);
+        assert_eq!(Direction::Left.opposite(), Direction::Right);
+        assert_eq!(Direction::Down.opposite(), Direction::Up);
     }
 }
