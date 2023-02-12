@@ -1,8 +1,8 @@
 use std::collections::VecDeque;
 
 use crate::controller::Controller;
-use crate::data_transfer::{Cell, Direction, Status};
-use crate::value_objects::Position;
+use crate::data_transfer::{Direction, Status};
+use crate::value_objects::{Cell, Position};
 use rand::Rng;
 use rand_chacha::ChaCha8Rng;
 

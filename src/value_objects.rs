@@ -1,4 +1,4 @@
-use crate::data_transfer::Direction;
+use crate::data_transfer::{Cell as CellDto, Direction};
 
 #[derive(PartialEq, Hash, Eq, Debug, Copy, Clone)]
 pub struct Position(pub usize, pub usize);
@@ -48,5 +48,59 @@ mod direction_tests {
         assert_eq!(Direction::Up.opposite(), Direction::Down);
         assert_eq!(Direction::Left.opposite(), Direction::Right);
         assert_eq!(Direction::Down.opposite(), Direction::Up);
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum Cell {
+    Empty(usize),
+    Foods(usize),
+    /// A snake segment with an entra
+    Snake {
+        entry: Option<Direction>,
+        exit: Option<Direction>,
+    },
+}
+
+impl Cell {
+    pub fn as_dto(&self) -> CellDto {
+        match self {
+            Cell::Empty(_) => CellDto::Empty,
+            Cell::Foods(_) => CellDto::Foods,
+            Cell::Snake { entry, exit } => CellDto::Snake {
+                entry: *entry,
+                exit: *exit,
+            },
+        }
+    }
+}
+
+#[cfg(test)]
+mod cell_tests {
+    use super::*;
+
+    #[test]
+    fn empty_as_dto() {
+        assert_eq!(Cell::Empty(0).as_dto(), CellDto::Empty);
+    }
+
+    #[test]
+    fn foods_as_dto() {
+        assert_eq!(Cell::Foods(0).as_dto(), CellDto::Foods);
+    }
+
+    #[test]
+    fn snake_as_dto() {
+        assert_eq!(
+            Cell::Snake {
+                entry: None,
+                exit: None
+            }
+            .as_dto(),
+            CellDto::Snake {
+                entry: None,
+                exit: None
+            }
+        );
     }
 }

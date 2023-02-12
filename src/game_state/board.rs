@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
-use crate::data_transfer::{Cell, Direction};
-use crate::value_objects::{Position, Velocity};
+use crate::data_transfer::Direction;
+use crate::value_objects::{Cell, Position, Velocity};
 
 #[derive(Debug, PartialEq)]
 pub struct Board<const N_ROWS: usize, const N_COLS: usize>([[Cell; N_COLS]; N_ROWS]);
