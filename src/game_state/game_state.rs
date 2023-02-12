@@ -173,11 +173,10 @@ impl<const N_ROWS: usize, const N_COLS: usize> GameState<N_ROWS, N_COLS> {
 
 #[cfg(test)]
 mod tests {
-    use rand::SeedableRng;
-
-    use crate::controller::MockController;
+    use crate::controller::mock_controller::MockController;
     use crate::data_transfer::Direction;
     use crate::seeder::{MockSeeder, Seeder};
+    use rand::SeedableRng;
 
     use super::*;
 
@@ -334,9 +333,9 @@ impl<const N_ROWS: usize, const N_COLS: usize> Options<N_ROWS, N_COLS> {
 
 #[cfg(test)]
 mod options_tests {
-    use crate::{controller::MockController, data_transfer::Direction};
-
     use super::*;
+    use crate::controller::mock_controller::MockController;
+    use crate::data_transfer::Direction;
 
     const EXPECTED_BOARD: [[Cell; 3]; 3] = [
         [Cell::Foods(0), Cell::Empty(1), Cell::Empty(2)],
