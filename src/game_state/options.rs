@@ -55,7 +55,7 @@ impl<const N_ROWS: usize, const N_COLS: usize> Options<N_ROWS, N_COLS> {
 #[cfg(test)]
 mod options_tests {
     use crate::controller::mock_controller::MockController;
-    use crate::data_transfer::*;
+    use crate::data_transfer_objects::*;
 
     use super::*;
 

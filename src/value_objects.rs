@@ -1,4 +1,4 @@
-use crate::data_transfer::{Cell as CellDto, Direction};
+use crate::data_transfer_objects as dto;
 
 #[derive(PartialEq, Hash, Eq, Debug, Copy, Clone)]
 pub struct Position(pub usize, pub usize);
@@ -10,22 +10,22 @@ impl Velocity {
     pub const DEFAULT_MAGNITUDE: usize = 1;
 }
 
-impl Direction {
+impl dto::Direction {
     pub fn as_velocity(&self) -> Velocity {
         match self {
-            Direction::Right => Velocity(0, 1),
-            Direction::Up => Velocity(-1, 0),
-            Direction::Left => Velocity(0, -1),
-            Direction::Down => Velocity(1, 0),
+            dto::Direction::Right => Velocity(0, 1),
+            dto::Direction::Up => Velocity(-1, 0),
+            dto::Direction::Left => Velocity(0, -1),
+            dto::Direction::Down => Velocity(1, 0),
         }
     }
 
-    pub fn opposite(&self) -> Direction {
+    pub fn opposite(&self) -> dto::Direction {
         match self {
-            Direction::Right => Direction::Left,
-            Direction::Up => Direction::Down,
-            Direction::Left => Direction::Right,
-            Direction::Down => Direction::Up,
+            dto::Direction::Right => dto::Direction::Left,
+            dto::Direction::Up => dto::Direction::Down,
+            dto::Direction::Left => dto::Direction::Right,
+            dto::Direction::Down => dto::Direction::Up,
         }
     }
 }
@@ -36,18 +36,18 @@ mod direction_tests {
 
     #[test]
     fn as_velocity() {
-        assert_eq!(Direction::Right.as_velocity(), Velocity(0, 1));
-        assert_eq!(Direction::Up.as_velocity(), Velocity(-1, 0));
-        assert_eq!(Direction::Left.as_velocity(), Velocity(0, -1));
-        assert_eq!(Direction::Down.as_velocity(), Velocity(1, 0));
+        assert_eq!(dto::Direction::Right.as_velocity(), Velocity(0, 1));
+        assert_eq!(dto::Direction::Up.as_velocity(), Velocity(-1, 0));
+        assert_eq!(dto::Direction::Left.as_velocity(), Velocity(0, -1));
+        assert_eq!(dto::Direction::Down.as_velocity(), Velocity(1, 0));
     }
 
     #[test]
     fn opposite() {
-        assert_eq!(Direction::Right.opposite(), Direction::Left);
-        assert_eq!(Direction::Up.opposite(), Direction::Down);
-        assert_eq!(Direction::Left.opposite(), Direction::Right);
-        assert_eq!(Direction::Down.opposite(), Direction::Up);
+        assert_eq!(dto::Direction::Right.opposite(), dto::Direction::Left);
+        assert_eq!(dto::Direction::Up.opposite(), dto::Direction::Down);
+        assert_eq!(dto::Direction::Left.opposite(), dto::Direction::Right);
+        assert_eq!(dto::Direction::Down.opposite(), dto::Direction::Up);
     }
 }
 
@@ -57,17 +57,17 @@ pub enum Cell {
     Foods(usize),
     /// A snake segment with an entra
     Snake {
-        entry: Option<Direction>,
-        exit: Option<Direction>,
+        entry: Option<dto::Direction>,
+        exit: Option<dto::Direction>,
     },
 }
 
 impl Cell {
-    pub fn as_dto(&self) -> CellDto {
+    pub fn as_dto(&self) -> dto::Cell {
         match self {
-            Cell::Empty(_) => CellDto::Empty,
-            Cell::Foods(_) => CellDto::Foods,
-            Cell::Snake { entry, exit } => CellDto::Snake {
+            Cell::Empty(_) => dto::Cell::Empty,
+            Cell::Foods(_) => dto::Cell::Foods,
+            Cell::Snake { entry, exit } => dto::Cell::Snake {
                 entry: *entry,
                 exit: *exit,
             },
@@ -81,12 +81,12 @@ mod cell_tests {
 
     #[test]
     fn empty_as_dto() {
-        assert_eq!(Cell::Empty(0).as_dto(), CellDto::Empty);
+        assert_eq!(Cell::Empty(0).as_dto(), dto::Cell::Empty);
     }
 
     #[test]
     fn foods_as_dto() {
-        assert_eq!(Cell::Foods(0).as_dto(), CellDto::Foods);
+        assert_eq!(Cell::Foods(0).as_dto(), dto::Cell::Foods);
     }
 
     #[test]
@@ -97,7 +97,7 @@ mod cell_tests {
                 exit: None
             }
             .as_dto(),
-            CellDto::Snake {
+            dto::Cell::Snake {
                 entry: None,
                 exit: None
             }

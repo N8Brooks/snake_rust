@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
 use crate::controller::Controller;
-use crate::data_transfer::{Direction, Status};
+use crate::data_transfer_objects::{Direction, Status};
 use crate::value_objects::{Cell, Position};
 use rand::Rng;
 use rand_chacha::ChaCha8Rng;
@@ -174,7 +174,7 @@ impl<const N_ROWS: usize, const N_COLS: usize> GameState<N_ROWS, N_COLS> {
 #[cfg(test)]
 mod tests {
     use crate::controller::mock_controller::MockController;
-    use crate::data_transfer::Direction;
+    use crate::data_transfer_objects::Direction;
     use crate::seeder::{MockSeeder, Seeder};
     use rand::SeedableRng;
 
@@ -335,7 +335,7 @@ impl<const N_ROWS: usize, const N_COLS: usize> Options<N_ROWS, N_COLS> {
 mod options_tests {
     use super::*;
     use crate::controller::mock_controller::MockController;
-    use crate::data_transfer::Direction;
+    use crate::data_transfer_objects::Direction;
 
     const EXPECTED_BOARD: [[Cell; 3]; 3] = [
         [Cell::Foods(0), Cell::Empty(1), Cell::Empty(2)],

@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use crate::data_transfer::Direction;
+use crate::data_transfer_objects::Direction;
 use crate::value_objects::{Cell, Position, Velocity};
 
 #[derive(Debug, PartialEq)]
