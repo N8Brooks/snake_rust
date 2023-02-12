@@ -55,82 +55,20 @@ impl<const N_ROWS: usize, const N_COLS: usize> GameState<N_ROWS, N_COLS> {
     pub fn iterate_turn(&mut self) -> Status {
         let direction = self.controller.get_direction();
         let next_head = self.get_next_head(&direction);
-        let last_head = self.get_head().clone();
         match self.board.at(&next_head) {
             Cell::Empty(empty_index) => {
-                assert_eq!(self.empty.swap_remove(empty_index), next_head);
-                if empty_index < self.empty.len() {
-                    let position = self.empty[empty_index];
-                    *self.board.at_mut(&position) = Cell::Empty(empty_index);
-                }
-
-                *self.board.at_mut(&last_head) =
-                    if let Cell::Snake { entry, exit: None } = self.board.at(&last_head) {
-                        Cell::Snake {
-                            entry,
-                            exit: Some(direction),
-                        }
-                    } else {
-                        panic!("invariant not snake {:?}", self.board.at(&last_head))
-                    };
-
-                let next_tail = self.snake.back().expect("non empty snake next tail");
-                *self.board.at_mut(&next_tail) =
-                    if let Cell::Snake { entry: _, exit } = self.board.at(&next_tail) {
-                        Cell::Snake { entry: None, exit }
-                    } else {
-                        panic!("invariant not snake {:?}", self.board.at(&next_tail))
-                    };
-
-                let last_tail = self.snake.pop_back().expect("non empty snake last tail");
-                *self.board.at_mut(&last_tail) = if let Cell::Snake {
-                    entry: None,
-                    exit: _,
-                } = self.board.at(&last_tail)
-                {
-                    Cell::Empty(self.empty.len())
-                } else {
-                    panic!("invariant not snake {:?}", self.board.at(&last_tail))
-                };
-                self.empty.push(last_tail);
-
-                self.snake.push_front(next_head);
-                *self.board.at_mut(&next_head) = Cell::Snake {
-                    entry: if self.snake.len() > 1 {
-                        Some(direction.opposite())
-                    } else {
-                        None
-                    },
-                    exit: None,
-                };
-
+                self.remove_empty(next_head, empty_index);
+                self.update_last_head(&direction);
+                self.update_next_tail();
+                self.remove_last_tail();
+                self.insert_snake_head(next_head, &direction);
                 Status::Ongoing
             }
             Cell::Foods(foods_index) => {
-                assert_eq!(self.foods.swap_remove(foods_index), next_head);
-                if foods_index < self.foods.len() {
-                    let position = self.foods[foods_index];
-                    *self.board.at_mut(&position) = Cell::Foods(foods_index);
-                }
-
-                *self.board.at_mut(&last_head) =
-                    if let Cell::Snake { entry, exit: None } = self.board.at(&last_head) {
-                        Cell::Snake {
-                            entry,
-                            exit: Some(direction),
-                        }
-                    } else {
-                        panic!("invariant not snake {:?}", self.board.at(&last_head))
-                    };
-
-                self.snake.push_front(next_head);
-                *self.board.at_mut(&next_head) = Cell::Snake {
-                    entry: Some(direction.opposite()),
-                    exit: None,
-                };
-
-                let _ = self.add_food();
-
+                self.remove_foods(next_head, foods_index);
+                self.update_last_head(&direction);
+                self.insert_snake_head(next_head, &direction);
+                let _ = self.insert_food();
                 if self.foods.is_empty() && self.empty.is_empty() {
                     Status::Over { is_won: true }
                 } else {
@@ -142,15 +80,80 @@ impl<const N_ROWS: usize, const N_COLS: usize> GameState<N_ROWS, N_COLS> {
     }
 
     fn get_next_head(&mut self, direction: &Direction) -> Position {
-        let position = self.get_head();
+        let position = self.get_last_head();
         self.board.move_in(position, &direction)
     }
 
-    fn get_head(&self) -> &Position {
+    fn get_last_head(&self) -> &Position {
         self.snake.front().expect("non empty snake head")
     }
 
-    fn add_food(&mut self) -> Result<(), MaxFoods> {
+    fn remove_empty(&mut self, next_head: Position, empty_index: usize) {
+        assert_eq!(self.empty.swap_remove(empty_index), next_head);
+        if empty_index < self.empty.len() {
+            let position = self.empty[empty_index];
+            *self.board.at_mut(&position) = Cell::Empty(empty_index);
+        }
+    }
+
+    fn remove_foods(&mut self, next_head: Position, foods_index: usize) {
+        assert_eq!(self.foods.swap_remove(foods_index), next_head);
+        if foods_index < self.foods.len() {
+            let position = self.foods[foods_index];
+            *self.board.at_mut(&position) = Cell::Foods(foods_index);
+        }
+    }
+
+    fn remove_last_tail(&mut self) {
+        let last_tail = self.snake.pop_back().expect("non empty snake last tail");
+        *self.board.at_mut(&last_tail) = if let Cell::Snake {
+            entry: None,
+            exit: _,
+        } = self.board.at(&last_tail)
+        {
+            Cell::Empty(self.empty.len())
+        } else {
+            panic!("invariant not snake {:?}", self.board.at(&last_tail))
+        };
+        self.empty.push(last_tail);
+    }
+
+    fn update_next_tail(&mut self) {
+        let next_tail = self.snake.back().expect("non empty snake next tail");
+        *self.board.at_mut(&next_tail) =
+            if let Cell::Snake { entry: _, exit } = self.board.at(&next_tail) {
+                Cell::Snake { entry: None, exit }
+            } else {
+                panic!("invariant not snake {:?}", self.board.at(&next_tail))
+            };
+    }
+
+    fn insert_snake_head(&mut self, next_head: Position, direction: &Direction) {
+        self.snake.push_front(next_head);
+        *self.board.at_mut(&next_head) = Cell::Snake {
+            entry: if self.snake.len() > 1 {
+                Some(direction.opposite())
+            } else {
+                None
+            },
+            exit: None,
+        };
+    }
+
+    fn update_last_head(&mut self, direction: &Direction) {
+        let last_head = self.get_last_head().clone();
+        *self.board.at_mut(&last_head) =
+            if let Cell::Snake { entry, exit: None } = self.board.at(&last_head) {
+                Cell::Snake {
+                    entry,
+                    exit: Some(*direction),
+                }
+            } else {
+                panic!("invariant not snake {:?}", self.board.at(&last_head))
+            };
+    }
+
+    fn insert_food(&mut self) -> Result<(), MaxFoods> {
         if self.empty.is_empty() {
             Err(MaxFoods)
         } else {
@@ -262,7 +265,7 @@ mod tests {
         let options = Options::<3, 3>::with_seed(1, 0);
         let controller = Box::new(MockController(Direction::Right));
         let game_state = options.build(controller).unwrap();
-        assert_eq!(*game_state.get_head(), Position(1, 1));
+        assert_eq!(*game_state.get_last_head(), Position(1, 1));
     }
 
     #[test]
@@ -324,7 +327,7 @@ impl<const N_ROWS: usize, const N_COLS: usize> Options<N_ROWS, N_COLS> {
 
     fn add_foods(&self, game_state: &mut GameState<N_ROWS, N_COLS>) {
         for _ in 0..self.n_foods {
-            game_state.add_food().expect("room for foods");
+            game_state.insert_food().expect("room for foods");
         }
     }
 }
