@@ -18,7 +18,7 @@ impl<const N_ROWS: usize, const N_COLS: usize> Options<N_ROWS, N_COLS> {
         }
     }
 
-    pub fn with_mock_seeder(n_foods: usize, seed: u64) -> Self {
+    pub fn with_seed(n_foods: usize, seed: u64) -> Self {
         Options {
             n_foods,
             seeder: Box::new(MockSeeder(seed)),
@@ -60,7 +60,7 @@ mod options_tests {
 
     #[test]
     fn build_with_invalid() {
-        let options = Options::<3, 3>::with_mock_seeder(9, 0);
+        let options = Options::<3, 3>::with_seed(9, 0);
         let controller = Box::new(MockController(Direction::Right));
         let game_state = options.build(controller).unwrap_err();
         assert!(matches!(game_state, InvalidOptions));
@@ -68,25 +68,25 @@ mod options_tests {
 
     #[test]
     fn is_valid_true() {
-        let options = Options::<3, 3>::with_mock_seeder(8, 0);
+        let options = Options::<3, 3>::with_seed(8, 0);
         assert!(options.is_valid());
     }
 
     #[test]
     fn is_valid_false() {
-        let options = Options::<3, 3>::with_mock_seeder(9, 0);
+        let options = Options::<3, 3>::with_seed(9, 0);
         assert!(!options.is_valid());
     }
 
     #[test]
     fn area() {
-        let options = Options::<3, 4>::with_mock_seeder(1, 0);
+        let options = Options::<3, 4>::with_seed(1, 0);
         assert_eq!(options.area(), 12);
     }
 
     #[test]
     fn n_non_empty() {
-        let options = Options::<3, 3>::with_mock_seeder(1, 0);
+        let options = Options::<3, 3>::with_seed(1, 0);
         assert_eq!(options.n_non_empty(), 2);
     }
 }

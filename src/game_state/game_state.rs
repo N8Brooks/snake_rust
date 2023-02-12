@@ -58,7 +58,7 @@ impl<const N_ROWS: usize, const N_COLS: usize> GameState<N_ROWS, N_COLS> {
         let last_head = self.get_head().clone();
         match self.board.at(&next_head) {
             Cell::Empty(empty_index) => {
-                self.empty.swap_remove(empty_index);
+                assert_eq!(self.empty.swap_remove(empty_index), next_head);
                 if empty_index < self.empty.len() {
                     let position = self.empty[empty_index];
                     *self.board.at_mut(&position) = Cell::Empty(empty_index);
@@ -103,12 +103,42 @@ impl<const N_ROWS: usize, const N_COLS: usize> GameState<N_ROWS, N_COLS> {
                     },
                     exit: None,
                 };
-            }
-            Cell::Foods(_foods_index) => todo!(),
-            Cell::Snake { .. } => return Status::Over { is_won: false },
-        };
 
-        Status::Ongoing
+                Status::Ongoing
+            }
+            Cell::Foods(foods_index) => {
+                assert_eq!(self.foods.swap_remove(foods_index), next_head);
+                if foods_index < self.foods.len() {
+                    let position = self.foods[foods_index];
+                    *self.board.at_mut(&position) = Cell::Foods(foods_index);
+                }
+
+                *self.board.at_mut(&last_head) =
+                    if let Cell::Snake { entry, exit: None } = self.board.at(&last_head) {
+                        Cell::Snake {
+                            entry,
+                            exit: Some(direction),
+                        }
+                    } else {
+                        panic!("invariant not snake {:?}", self.board.at(&last_head))
+                    };
+
+                self.snake.push_front(next_head);
+                *self.board.at_mut(&next_head) = Cell::Snake {
+                    entry: Some(direction.opposite()),
+                    exit: None,
+                };
+
+                let _ = self.add_food();
+
+                if self.foods.is_empty() && self.empty.is_empty() {
+                    Status::Over { is_won: true }
+                } else {
+                    Status::Ongoing
+                }
+            }
+            Cell::Snake { .. } => Status::Over { is_won: false },
+        }
     }
 
     fn get_next_head(&mut self, direction: &Direction) -> Position {
@@ -126,7 +156,7 @@ impl<const N_ROWS: usize, const N_COLS: usize> GameState<N_ROWS, N_COLS> {
         } else {
             let empty_index = self.rng.gen_range(0..self.empty.len());
             let position = self.empty.swap_remove(empty_index);
-            if empty_index != self.empty.len() {
+            if empty_index < self.empty.len() {
                 let position = self.empty[empty_index];
                 *self.board.at_mut(&position) = Cell::Empty(empty_index);
             }
@@ -198,8 +228,8 @@ mod tests {
         }
 
         fn assert_is_foods(&self, position: &Position, foods_index: usize) {
-            assert_eq!(self.board.at(position), Cell::Empty(foods_index));
-            assert_eq!(self.empty[foods_index], *position);
+            assert_eq!(self.board.at(position), Cell::Foods(foods_index));
+            assert_eq!(self.foods[foods_index], *position);
             assert!(!self.empty.contains(position));
             assert!(self.foods.contains(position));
             assert!(!self.snake.contains(position));
@@ -221,7 +251,7 @@ mod tests {
 
     #[test]
     pub fn get_next_head() {
-        let options = Options::<3, 3>::with_mock_seeder(1, 0);
+        let options = Options::<3, 3>::with_seed(1, 0);
         let controller = Box::new(MockController(Direction::Right));
         let mut game_state = options.build(controller).unwrap();
         assert_eq!(game_state.get_next_head(&Direction::Right), Position(1, 2));
@@ -229,7 +259,7 @@ mod tests {
 
     #[test]
     pub fn get_head() {
-        let options = Options::<3, 3>::with_mock_seeder(1, 0);
+        let options = Options::<3, 3>::with_seed(1, 0);
         let controller = Box::new(MockController(Direction::Right));
         let game_state = options.build(controller).unwrap();
         assert_eq!(*game_state.get_head(), Position(1, 1));
@@ -238,7 +268,7 @@ mod tests {
     #[test]
     fn iterate_turn_empty() {
         let controller = Box::new(MockController(Direction::Right));
-        let mut game_state = Options::<3, 3>::new(0).build(controller).unwrap();
+        let mut game_state = Options::<3, 3>::with_seed(0, 0).build(controller).unwrap();
         assert_eq!(game_state.iterate_turn(), Status::Ongoing);
         game_state.assert_is_empty(&Position(1, 1), 7);
         game_state.assert_is_snake_with_directions(&Position(1, 2), None, None);
@@ -246,14 +276,14 @@ mod tests {
 
     #[test]
     fn iterate_turn_foods() {
+        let new_foods_position = Position(1, 2);
         let controller = Box::new(MockController(Direction::Down));
-        let mut game_state = Options::<3, 3>::new(3).build(controller).unwrap();
-        let new_foods_position = Position(0, 1);
-        game_state.assert_is_empty(&new_foods_position, 7);
+        let mut game_state = Options::<3, 3>::with_seed(3, 0).build(controller).unwrap();
+        game_state.assert_is_empty(&new_foods_position, 4);
         assert_eq!(game_state.iterate_turn(), Status::Ongoing);
         game_state.assert_is_snake_with_directions(&Position(1, 1), None, Some(Direction::Down));
-        game_state.assert_is_snake_with_directions(&Position(1, 2), Some(Direction::Up), None);
-        game_state.assert_is_foods(&new_foods_position, 7);
+        game_state.assert_is_snake_with_directions(&Position(2, 1), Some(Direction::Up), None);
+        game_state.assert_is_foods(&new_foods_position, 2);
     }
 
     #[test]
@@ -332,7 +362,7 @@ mod options_tests {
 
     #[test]
     fn build_with_valid() {
-        let options = Options::<3, 3>::with_mock_seeder(1, 0);
+        let options = Options::<3, 3>::with_seed(1, 0);
         let controller = Box::new(MockController(Direction::Right));
         let game_state = options.build(controller).unwrap();
         assert_eq!(game_state.board, Board::new(EXPECTED_BOARD));
