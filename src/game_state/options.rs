@@ -1,6 +1,3 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use crate::controller::Controller;
 use crate::game_state::GameState;
 use crate::seeder::*;
@@ -31,11 +28,11 @@ impl<const N_ROWS: usize, const N_COLS: usize> Options<N_ROWS, N_COLS> {
 }
 
 impl<const N_ROWS: usize, const N_COLS: usize> Options<N_ROWS, N_COLS> {
-    pub fn build(
+    pub fn build<'a>(
         &self,
-        controller: Box<dyn Controller>,
-        view: Rc<RefCell<dyn View>>,
-    ) -> Result<GameState<N_ROWS, N_COLS>, InvalidOptions> {
+        controller: &'a mut dyn Controller,
+        view: &'a mut dyn View,
+    ) -> Result<GameState<'a, N_ROWS, N_COLS>, InvalidOptions> {
         if self.is_valid() {
             Ok(GameState::from_options(self, controller, view))
         } else {
@@ -68,9 +65,9 @@ mod options_tests {
     #[test]
     fn build_with_invalid() {
         let options = Options::<3, 3>::with_seed(9, 0);
-        let controller = Box::new(MockController(Direction::Right));
-        let view = Rc::new(RefCell::new(MockView::default()));
-        let game_state = options.build(controller, view).unwrap_err();
+        let mut controller = MockController(Direction::Right);
+        let mut view = MockView::default();
+        let game_state = options.build(&mut controller, &mut view).unwrap_err();
         assert!(matches!(game_state, InvalidOptions));
     }
 

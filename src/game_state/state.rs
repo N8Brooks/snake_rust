@@ -1,6 +1,4 @@
-use std::cell::RefCell;
 use std::collections::VecDeque;
-use std::rc::Rc;
 
 use crate::controller::Controller;
 use crate::data_transfer_objects as dto;
@@ -16,29 +14,28 @@ use super::Options;
 // TODO: add other structures to `Board`?
 // TODO: replace `view` with subscription model
 // TODO: some testing for `iterate_turn` is redundant
-// TODO: can probably used single ownership for view
 // TODO: move `move_in` to position with `Board` generic
 
 #[derive(Debug)]
 pub struct MaxFoods;
 
 #[derive(Debug)]
-pub struct GameState<const N_ROWS: usize, const N_COLS: usize> {
+pub struct GameState<'a, const N_ROWS: usize, const N_COLS: usize> {
     board: Board<N_ROWS, N_COLS>,
     empty: Vec<Position>,
     foods: Vec<Position>,
     snake: VecDeque<Position>,
-    controller: Box<dyn Controller>,
-    view: Rc<RefCell<dyn View>>,
+    controller: &'a mut dyn Controller,
+    view: &'a mut dyn View,
     rng: ChaCha8Rng,
 }
 
-impl<const N_ROWS: usize, const N_COLS: usize> GameState<N_ROWS, N_COLS> {
+impl<'a, const N_ROWS: usize, const N_COLS: usize> GameState<'a, N_ROWS, N_COLS> {
     pub fn from_options(
         options: &Options<N_ROWS, N_COLS>,
-        controller: Box<dyn Controller>,
-        view: Rc<RefCell<dyn View>>,
-    ) -> GameState<N_ROWS, N_COLS> {
+        controller: &'a mut dyn Controller,
+        view: &'a mut dyn View,
+    ) -> GameState<'a, N_ROWS, N_COLS> {
         let board = Board::<N_ROWS, N_COLS>::default();
         let mut game_state = options.get_init_game_state(board, controller, view);
         options.add_foods(&mut game_state);
@@ -48,10 +45,10 @@ impl<const N_ROWS: usize, const N_COLS: usize> GameState<N_ROWS, N_COLS> {
     /// This builds a `GameState` from a board without checking for invariants
     pub fn from_board(
         board: Board<N_ROWS, N_COLS>,
-        controller: Box<dyn Controller>,
-        view: Rc<RefCell<dyn View>>,
+        controller: &'a mut dyn Controller,
+        view: &'a mut dyn View,
         rng: ChaCha8Rng,
-    ) -> GameState<N_ROWS, N_COLS> {
+    ) -> GameState<'a, N_ROWS, N_COLS> {
         let empty = board.get_empty();
         let foods = board.get_foods();
         let snake = board.get_snake();
@@ -114,9 +111,7 @@ impl<const N_ROWS: usize, const N_COLS: usize> GameState<N_ROWS, N_COLS> {
                 panic!("invariant not snake {:?}", self.board.at(&last_tail))
             };
         self.empty.push(last_tail);
-        self.view
-            .borrow_mut()
-            .swap_cell(&last_tail, old, dto::Cell::Empty);
+        self.view.swap_cell(&last_tail, old, dto::Cell::Empty);
     }
 
     fn get_next_tail(&self) -> &Position {
@@ -133,7 +128,7 @@ impl<const N_ROWS: usize, const N_COLS: usize> GameState<N_ROWS, N_COLS> {
                 panic!("invariant not snake {:?}", self.board.at(&next_tail))
             };
         let new = self.board.at(&next_tail).as_dto();
-        self.view.borrow_mut().swap_cell(&next_tail, old, new);
+        self.view.swap_cell(&next_tail, old, new);
     }
 
     fn insert_snake_head(&mut self, next_head: Position, entry: Option<Direction>) {
@@ -146,7 +141,7 @@ impl<const N_ROWS: usize, const N_COLS: usize> GameState<N_ROWS, N_COLS> {
         *self.board.at_mut(&next_head) = Cell::Snake { entry, exit: None };
         self.snake.push_front(next_head);
         let new = self.board.at(&next_head).as_dto();
-        self.view.borrow_mut().swap_cell(&next_head, old, new);
+        self.view.swap_cell(&next_head, old, new);
     }
 
     fn remove_empty(&mut self, next_head: &Position, empty_index: usize) {
@@ -182,7 +177,7 @@ impl<const N_ROWS: usize, const N_COLS: usize> GameState<N_ROWS, N_COLS> {
                 panic!("invariant not snake {:?}", self.board.at(&last_head))
             };
         let new = self.board.at(&last_head).as_dto();
-        self.view.borrow_mut().swap_cell(&last_head, old, new);
+        self.view.swap_cell(&last_head, old, new);
     }
 
     fn insert_food(&mut self) -> Result<(), MaxFoods> {
@@ -199,7 +194,6 @@ impl<const N_ROWS: usize, const N_COLS: usize> GameState<N_ROWS, N_COLS> {
             *self.board.at_mut(&position) = Cell::Foods(foods_index);
             self.foods.push(position);
             self.view
-                .borrow_mut()
                 .swap_cell(&position, dto::Cell::Empty, dto::Cell::Foods);
             Ok(())
         }
@@ -219,7 +213,7 @@ mod tests {
 
     use super::*;
 
-    impl<const N_ROWS: usize, const N_COLS: usize> GameState<N_ROWS, N_COLS> {
+    impl<'a, const N_ROWS: usize, const N_COLS: usize> GameState<'a, N_ROWS, N_COLS> {
         fn assert_is_empty(&self, position: &Position, empty_index: usize) {
             assert_eq!(Cell::Empty(empty_index), self.board.at(position));
             assert_eq!(self.empty[empty_index], *position);
@@ -255,10 +249,10 @@ mod tests {
             entry: None,
             exit: None,
         }]]);
-        let controller = Box::new(MockController(Direction::Right));
-        let view = Rc::new(RefCell::new(MockView::default()));
+        let mut controller = MockController(Direction::Right);
+        let mut view = MockView::default();
         let rng = ChaCha8Rng::seed_from_u64(0);
-        let game_state = GameState::from_board(board, controller, view, rng);
+        let game_state = GameState::from_board(board, &mut controller, &mut view, rng);
         assert_eq!(game_state.empty, Vec::new());
         assert_eq!(game_state.snake, VecDeque::from([Position(0, 0)]));
     }
@@ -266,27 +260,27 @@ mod tests {
     #[test]
     pub fn get_next_head() {
         let options = Options::<3, 3>::with_seed(1, 0);
-        let controller = Box::new(MockController(Direction::Right));
-        let view = Rc::new(RefCell::new(MockView::default()));
-        let game_state = options.build(controller, view).unwrap();
+        let mut controller = MockController(Direction::Right);
+        let mut view = MockView::default();
+        let game_state = options.build(&mut controller, &mut view).unwrap();
         assert_eq!(game_state.get_next_head(&Direction::Right), Position(1, 2));
     }
 
     #[test]
     pub fn get_last_head() {
         let options = Options::<3, 3>::with_seed(1, 0);
-        let controller = Box::new(MockController(Direction::Right));
-        let view = Rc::new(RefCell::new(MockView::default()));
-        let game_state = options.build(controller, view).unwrap();
+        let mut controller = MockController(Direction::Right);
+        let mut view = MockView::default();
+        let game_state = options.build(&mut controller, &mut view).unwrap();
         assert_eq!(*game_state.get_last_head(), Position(1, 1));
     }
 
     #[test]
     fn iterate_turn_empty() {
-        let controller = Box::new(MockController(Direction::Right));
-        let view = Rc::new(RefCell::new(MockView::default()));
+        let mut controller = MockController(Direction::Right);
+        let mut view = MockView::default();
         let mut game_state = Options::<3, 3>::with_seed(0, 0)
-            .build(controller, view)
+            .build(&mut controller, &mut view)
             .unwrap();
         assert_eq!(game_state.iterate_turn(), dto::Status::Ongoing);
         game_state.assert_is_empty(&Position(1, 1), 4);
@@ -296,10 +290,10 @@ mod tests {
     #[test]
     fn iterate_turn_foods() {
         let new_foods_position = Position(1, 2);
-        let controller = Box::new(MockController(Direction::Down));
-        let view = Rc::new(RefCell::new(MockView::default()));
+        let mut controller = MockController(Direction::Down);
+        let mut view = MockView::default();
         let mut game_state = Options::<3, 3>::with_seed(3, 0)
-            .build(controller, view)
+            .build(&mut controller, &mut view)
             .unwrap();
         game_state.assert_is_empty(&new_foods_position, 4);
         assert_eq!(game_state.iterate_turn(), dto::Status::Ongoing);
@@ -310,9 +304,11 @@ mod tests {
 
     #[test]
     fn iterate_turn_snake_is_won_true() {
-        let controller = Box::new(MockController(Direction::Right));
-        let view = Rc::new(RefCell::new(MockView::default()));
-        let mut game_state = Options::<1, 2>::new(1).build(controller, view).unwrap();
+        let mut controller = MockController(Direction::Right);
+        let mut view = MockView::default();
+        let mut game_state = Options::<1, 2>::new(1)
+            .build(&mut controller, &mut view)
+            .unwrap();
         assert_eq!(
             game_state.iterate_turn(),
             dto::Status::Over { is_won: true }
@@ -347,22 +343,20 @@ mod tests {
         ],
     ];
 
-    fn setup_loosable_board(
-        controller: Option<Box<dyn Controller>>,
-        view: Option<Rc<RefCell<dyn View>>>,
-    ) -> GameState<2, 3> {
-        let controller = controller.unwrap_or_else(|| Box::new(MockController(Direction::Right)));
+    fn setup_loosable_board<'a>(
+        controller: &'a mut dyn Controller,
+        view: &'a mut dyn View,
+    ) -> GameState<'a, 2, 3> {
         let board = Board::new(LOOSABLE_BOARD);
-        let view = view.unwrap_or_else(|| Rc::new(RefCell::new(MockView::default())));
         let rng = MockSeeder(0).get_rng();
         GameState::from_board(board, controller, view, rng)
     }
 
     #[test]
     fn iterate_turn_snake_is_won_false() {
-        let controller = Box::new(MockController(Direction::Up));
-        let controller = Some(controller as Box<dyn Controller>);
-        let mut game_state = setup_loosable_board(controller, None);
+        let mut controller = MockController(Direction::Up);
+        let mut view = MockView::default();
+        let mut game_state = setup_loosable_board(&mut controller, &mut view);
         assert_eq!(
             game_state.iterate_turn(),
             dto::Status::Over { is_won: false }
@@ -371,29 +365,27 @@ mod tests {
 
     #[test]
     fn remove_last_tail() {
-        let view = Rc::new(RefCell::new(MockView::default()));
-        let view_1 = Rc::clone(&view) as Rc<RefCell<dyn View>>;
-        let mut game_state = setup_loosable_board(None, Some(view_1));
-        game_state.remove_last_tail();
         let position = Position(0, 2);
+        let mut controller = MockController(Direction::Right);
+        let mut view = MockView::default();
+        let mut game_state = setup_loosable_board(&mut controller, &mut view);
+        game_state.remove_last_tail();
         game_state.assert_is_empty(&position, 1);
         let old = dto::Cell::Snake {
             entry: None,
-            exit: Some(Direction::Left),
+            exit: Some(controller.0.opposite()),
         };
-        let actual = &view.borrow().0;
-        assert_eq!(actual, &[(position, old, dto::Cell::Empty)])
+        assert_eq!(view.0, &[(position, old, dto::Cell::Empty)])
     }
 
     #[test]
     fn update_next_tail() {
-        let view = Rc::new(RefCell::new(MockView::default()));
-        let view_1 = Rc::clone(&view) as Rc<RefCell<dyn View>>;
-        let mut game_state = setup_loosable_board(None, Some(view_1));
-        game_state.remove_last_tail();
-        view.borrow_mut().0.remove(0);
-        game_state.update_next_tail();
         let position = Position(0, 1);
+        let mut controller = MockController(Direction::Right);
+        let mut view = MockView::default();
+        let mut game_state = setup_loosable_board(&mut controller, &mut view);
+        game_state.remove_last_tail();
+        game_state.update_next_tail();
         game_state.assert_is_snake_with_directions(&position, None, Some(Direction::Left));
         let old = dto::Cell::Snake {
             entry: Some(Direction::Right),
@@ -403,67 +395,66 @@ mod tests {
             entry: None,
             exit: Some(Direction::Left),
         };
-        assert_eq!(view.borrow().0, [(position, old, new)]);
+        assert_eq!(view.0.last().unwrap(), &(position, old, new));
     }
 
     #[test]
     fn insert_snake_head() {
-        let view = Rc::new(RefCell::new(MockView::default()));
-        let b = Rc::clone(&view) as Rc<RefCell<dyn View>>;
-        let mut game_state = setup_loosable_board(None, Some(b));
+        let position = Position(1, 2);
+        let mut controller = MockController(Direction::Right);
+        let mut view = MockView::default();
+        let mut game_state = setup_loosable_board(&mut controller, &mut view);
         let next_head = game_state.get_next_head(&Direction::Right);
         let entry = Some(Direction::Left);
         game_state.insert_snake_head(next_head, entry);
-        let position = Position(1, 2);
         game_state.assert_is_snake_with_directions(&position, Some(Direction::Left), None);
         let new = dto::Cell::Snake { entry, exit: None };
-        assert_eq!(view.borrow().0, &[(position, dto::Cell::Empty, new)]);
+        assert_eq!(view.0, &[(position, dto::Cell::Empty, new)]);
     }
 
     #[test]
     fn update_last_head() {
-        let view = Rc::new(RefCell::new(MockView::default()));
-        let b = Rc::clone(&view) as Rc<RefCell<dyn View>>;
-        let mut game_state = setup_loosable_board(None, Some(b));
+        let position = Position(1, 1);
+        let direction = Direction::Right;
+        let mut controller = MockController(direction);
+        let mut view = MockView::default();
+        let mut game_state = setup_loosable_board(&mut controller, &mut view);
         game_state.update_last_head(&Direction::Right);
         game_state.assert_is_snake_with_directions(
-            &Position(1, 1),
-            Some(Direction::Left),
-            Some(Direction::Right),
+            &position,
+            Some(direction.opposite()),
+            Some(direction),
         );
         let old = dto::Cell::Snake {
-            entry: Some(Direction::Left),
+            entry: Some(direction.opposite()),
             exit: None,
         };
         let new = dto::Cell::Snake {
-            entry: Some(Direction::Left),
-            exit: Some(Direction::Right),
+            entry: Some(direction.opposite()),
+            exit: Some(direction),
         };
-        assert_eq!(view.borrow().0, &[(Position(1, 1), old, new)]);
+        assert_eq!(view.0, &[(Position(1, 1), old, new)]);
     }
 
     #[test]
     fn insert_food() {
-        let view = Rc::new(RefCell::new(MockView::default()));
-        let b = Rc::clone(&view) as Rc<RefCell<dyn View>>;
-        let mut game_state = setup_loosable_board(None, Some(b));
-        assert!(game_state.insert_food().is_ok());
         let position = Position(1, 2);
+        let mut controller = MockController(Direction::Right);
+        let mut view = MockView::default();
+        let mut game_state = setup_loosable_board(&mut controller, &mut view);
+        assert!(game_state.insert_food().is_ok());
         game_state.assert_is_foods(&position, 0);
-        assert_eq!(
-            view.borrow().0,
-            &[(position, dto::Cell::Empty, dto::Cell::Foods)]
-        );
+        assert_eq!(view.0, &[(position, dto::Cell::Empty, dto::Cell::Foods)]);
     }
 }
 
 impl<const N_ROWS: usize, const N_COLS: usize> Options<N_ROWS, N_COLS> {
-    fn get_init_game_state(
+    fn get_init_game_state<'a>(
         &self,
         board: Board<N_ROWS, N_COLS>,
-        controller: Box<dyn Controller>,
-        view: Rc<RefCell<dyn View>>,
-    ) -> GameState<N_ROWS, N_COLS> {
+        controller: &'a mut dyn Controller,
+        view: &'a mut dyn View,
+    ) -> GameState<'a, N_ROWS, N_COLS> {
         let empty = board.get_empty();
         let foods = board.get_foods();
         let snake = board.get_snake();
@@ -519,9 +510,9 @@ mod options_tests {
     #[test]
     fn build_with_valid() {
         let options = Options::<3, 3>::with_seed(1, 0);
-        let controller = Box::new(MockController(Direction::Right));
-        let view = Rc::new(RefCell::new(MockView::default()));
-        let game_state = options.build(controller, view).unwrap();
+        let mut controller = MockController(Direction::Right);
+        let mut view = MockView::default();
+        let game_state = options.build(&mut controller, &mut view).unwrap();
         assert_eq!(game_state.board, Board::new(EXPECTED_BOARD));
         assert_eq!(game_state.empty, Vec::from(EXPECTED_EMPTY));
         assert_eq!(game_state.snake, VecDeque::from(EXPECTED_SNAKE));
