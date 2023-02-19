@@ -1,15 +1,13 @@
 use std::fmt::Debug;
 
-use crate::data_transfer_objects::Direction;
+use crate::value_objects::Direction;
 
 pub trait Controller: Debug {
     fn get_direction(&mut self) -> Direction;
 }
 
 pub mod mock_controller {
-    use crate::data_transfer_objects::Direction;
-
-    use super::Controller;
+    use super::*;
 
     #[derive(Debug)]
     pub struct MockController(pub Direction);
@@ -38,8 +36,8 @@ pub mod random_controller {
     use rand::prelude::{Distribution, SeedableRng};
     use rand_chacha::ChaCha8Rng;
 
-    use crate::data_transfer_objects::Direction;
     use crate::seeder::Seeder;
+    use crate::value_objects::Direction;
 
     use super::Controller;
 

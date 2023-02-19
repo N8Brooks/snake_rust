@@ -1,6 +1,10 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use crate::controller::Controller;
 use crate::game_state::GameState;
 use crate::seeder::*;
+use crate::view::View;
 
 #[derive(Debug)]
 pub struct InvalidOptions;
@@ -30,9 +34,10 @@ impl<const N_ROWS: usize, const N_COLS: usize> Options<N_ROWS, N_COLS> {
     pub fn build(
         &self,
         controller: Box<dyn Controller>,
+        view: Rc<RefCell<dyn View>>,
     ) -> Result<GameState<N_ROWS, N_COLS>, InvalidOptions> {
         if self.is_valid() {
-            Ok(GameState::from_options(self, controller))
+            Ok(GameState::from_options(self, controller, view))
         } else {
             Err(InvalidOptions)
         }
@@ -55,7 +60,8 @@ impl<const N_ROWS: usize, const N_COLS: usize> Options<N_ROWS, N_COLS> {
 #[cfg(test)]
 mod options_tests {
     use crate::controller::mock_controller::MockController;
-    use crate::data_transfer_objects::*;
+    use crate::value_objects::Direction;
+    use crate::view::MockView;
 
     use super::*;
 
@@ -63,7 +69,8 @@ mod options_tests {
     fn build_with_invalid() {
         let options = Options::<3, 3>::with_seed(9, 0);
         let controller = Box::new(MockController(Direction::Right));
-        let game_state = options.build(controller).unwrap_err();
+        let view = Rc::new(RefCell::new(MockView::default()));
+        let game_state = options.build(controller, view).unwrap_err();
         assert!(matches!(game_state, InvalidOptions));
     }
 
