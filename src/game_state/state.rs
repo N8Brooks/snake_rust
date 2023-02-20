@@ -10,7 +10,6 @@ use rand_chacha::ChaCha8Rng;
 use super::board::Board;
 use super::Options;
 
-// TODO: use from and into for `dto` conversion
 // TODO: add other structures to `Board`?
 // TODO: replace `view` with subscription model
 // TODO: some testing for `iterate_turn` is redundant
@@ -103,7 +102,7 @@ impl<'a, const N_ROWS: usize, const N_COLS: usize> GameState<'a, N_ROWS, N_COLS>
 
     fn remove_last_tail(&mut self) {
         let last_tail = self.snake.pop_back().expect("non empty snake last tail");
-        let old = self.board.at(&last_tail).as_dto();
+        let old = dto::Cell::from(self.board.at(&last_tail));
         *self.board.at_mut(&last_tail) = if let Cell::Snake(Path {
             entry: None,
             exit: _,
@@ -123,7 +122,7 @@ impl<'a, const N_ROWS: usize, const N_COLS: usize> GameState<'a, N_ROWS, N_COLS>
 
     fn update_next_tail(&mut self) {
         let next_tail = *self.get_next_tail();
-        let old = self.board.at(&next_tail).as_dto();
+        let old = dto::Cell::from(self.board.at(&next_tail));
         *self.board.at_mut(&next_tail) = if let Cell::Snake(path) = self.board.at(&next_tail) {
             Cell::Snake(Path {
                 entry: None,
@@ -132,12 +131,12 @@ impl<'a, const N_ROWS: usize, const N_COLS: usize> GameState<'a, N_ROWS, N_COLS>
         } else {
             panic!("invariant not snake {:?}", self.board.at(&next_tail))
         };
-        let new = self.board.at(&next_tail).as_dto();
+        let new = dto::Cell::from(self.board.at(&next_tail));
         self.view.swap_cell(&next_tail, old, new);
     }
 
     fn insert_snake_head(&mut self, next_head: Position, entry: Option<Direction>) {
-        let old = self.board.at(&next_head).as_dto();
+        let old = dto::Cell::from(self.board.at(&next_head));
         match self.board.at(&next_head) {
             Cell::Empty(empty_index) => self.remove_empty(&next_head, empty_index),
             Cell::Foods(foods_index) => self.remove_foods(&next_head, foods_index),
@@ -145,7 +144,7 @@ impl<'a, const N_ROWS: usize, const N_COLS: usize> GameState<'a, N_ROWS, N_COLS>
         }
         *self.board.at_mut(&next_head) = Cell::Snake(Path { entry, exit: None });
         self.snake.push_front(next_head);
-        let new = self.board.at(&next_head).as_dto();
+        let new = dto::Cell::from(self.board.at(&next_head));
         self.view.swap_cell(&next_head, old, new);
     }
 
@@ -171,7 +170,7 @@ impl<'a, const N_ROWS: usize, const N_COLS: usize> GameState<'a, N_ROWS, N_COLS>
 
     fn update_last_head(&mut self, direction: &Direction) {
         let last_head = *self.get_last_head();
-        let old = self.board.at(&last_head).as_dto();
+        let old = dto::Cell::from(self.board.at(&last_head));
         *self.board.at_mut(&last_head) =
             if let Cell::Snake(Path { entry, exit: None }) = self.board.at(&last_head) {
                 Cell::Snake(Path {
@@ -181,7 +180,7 @@ impl<'a, const N_ROWS: usize, const N_COLS: usize> GameState<'a, N_ROWS, N_COLS>
             } else {
                 panic!("invariant invalid snake {:?}", self.board.at(&last_head))
             };
-        let new = self.board.at(&last_head).as_dto();
+        let new = dto::Cell::from(self.board.at(&last_head));
         self.view.swap_cell(&last_head, old, new);
     }
 

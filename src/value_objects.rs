@@ -2,7 +2,7 @@ use crate::data_transfer_objects as dto;
 use rand::distributions::{Distribution, Standard};
 use rand::Rng;
 
-pub use dto::{Direction, Path};
+pub use dto::{Direction, Path}; // Re-implementation not deemed worthwhile
 
 impl Direction {
     pub fn get_plane(&self) -> Plane {
@@ -107,12 +107,12 @@ pub enum Cell {
     Snake(Path),
 }
 
-impl Cell {
-    pub fn as_dto(&self) -> dto::Cell {
-        match self {
+impl From<Cell> for dto::Cell {
+    fn from(cell: Cell) -> Self {
+        match cell {
             Cell::Empty(_) => dto::Cell::Empty,
             Cell::Foods(_) => dto::Cell::Foods,
-            Cell::Snake(path) => dto::Cell::Snake(*path),
+            Cell::Snake(path) => dto::Cell::Snake(path),
         }
     }
 }
@@ -122,23 +122,26 @@ mod cell_tests {
     use super::*;
 
     #[test]
-    fn empty_as_dto() {
-        assert_eq!(Cell::Empty(0).as_dto(), dto::Cell::Empty);
+    fn empty_into() {
+        let actual = dto::Cell::from(Cell::Empty(0));
+        assert_eq!(actual, dto::Cell::Empty);
     }
 
     #[test]
-    fn foods_as_dto() {
-        assert_eq!(Cell::Foods(0).as_dto(), dto::Cell::Foods);
+    fn foods_from_into() {
+        let actual: dto::Cell = Cell::Foods(0).into();
+        assert_eq!(actual, dto::Cell::Foods);
     }
 
     #[test]
-    fn snake_as_dto() {
+    fn snake_from_into() {
+        let actual: dto::Cell = Cell::Snake(Path {
+            entry: None,
+            exit: None,
+        })
+        .into();
         assert_eq!(
-            Cell::Snake(Path {
-                entry: None,
-                exit: None
-            })
-            .as_dto(),
+            actual,
             dto::Cell::Snake(dto::Path {
                 entry: None,
                 exit: None
