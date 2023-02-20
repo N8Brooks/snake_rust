@@ -2,7 +2,7 @@ use crate::data_transfer_objects as dto;
 use rand::distributions::{Distribution, Standard};
 use rand::Rng;
 
-pub use dto::Direction;
+pub use dto::{Direction, Path};
 
 impl Direction {
     pub fn get_plane(&self) -> Plane {
@@ -104,11 +104,7 @@ impl Direction {}
 pub enum Cell {
     Empty(usize),
     Foods(usize),
-    /// A snake segment with an entra
-    Snake {
-        entry: Option<Direction>,
-        exit: Option<Direction>,
-    },
+    Snake(Path),
 }
 
 impl Cell {
@@ -116,10 +112,7 @@ impl Cell {
         match self {
             Cell::Empty(_) => dto::Cell::Empty,
             Cell::Foods(_) => dto::Cell::Foods,
-            Cell::Snake { entry, exit } => dto::Cell::Snake {
-                entry: *entry,
-                exit: *exit,
-            },
+            Cell::Snake(path) => dto::Cell::Snake(*path),
         }
     }
 }
@@ -141,15 +134,15 @@ mod cell_tests {
     #[test]
     fn snake_as_dto() {
         assert_eq!(
-            Cell::Snake {
+            Cell::Snake(Path {
                 entry: None,
                 exit: None
-            }
+            })
             .as_dto(),
-            dto::Cell::Snake {
+            dto::Cell::Snake(dto::Path {
                 entry: None,
                 exit: None
-            }
+            })
         );
     }
 }

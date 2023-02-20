@@ -1,7 +1,6 @@
 use std::collections::VecDeque;
 
-use crate::data_transfer_objects::Direction;
-use crate::value_objects::{Cell, Position, Velocity};
+use crate::value_objects::*;
 
 #[derive(Debug, PartialEq)]
 pub struct Board<const N_ROWS: usize, const N_COLS: usize>([[Cell; N_COLS]; N_ROWS]);
@@ -14,10 +13,10 @@ impl<const N_ROWS: usize, const N_COLS: usize> Default for Board<N_ROWS, N_COLS>
                 (0..N_COLS)
                     .map(|j| {
                         if i == N_ROWS / 2 && j == N_COLS / 2 {
-                            Cell::Snake {
+                            Cell::Snake(Path {
                                 entry: None,
                                 exit: None,
-                            }
+                            })
                         } else {
                             let empty = Cell::Empty(empty_index);
                             empty_index += 1;
@@ -61,10 +60,10 @@ impl<const N_ROWS: usize, const N_COLS: usize> Board<N_ROWS, N_COLS> {
     pub fn get_snake(&self) -> VecDeque<Position> {
         let mut position = self.find_snake_head().expect("snake head");
         let mut snake = VecDeque::from([position]);
-        while let Cell::Snake {
+        while let Cell::Snake(Path {
             entry: Some(direction),
             exit: _,
-        } = self.at(&position)
+        }) = self.at(&position)
         {
             position = self.move_in(&position, &direction);
             snake.push_back(position);
@@ -91,7 +90,7 @@ impl<const N_ROWS: usize, const N_COLS: usize> Board<N_ROWS, N_COLS> {
 
     fn find_snake_head_from_row(&self, (i, row): (usize, &[Cell; N_COLS])) -> Option<Position> {
         row.iter().enumerate().find_map(|(j, &cell)| {
-            if matches!(cell, Cell::Snake { exit: None, .. }) {
+            if matches!(cell, Cell::Snake(Path { exit: None, .. })) {
                 Some(Position(i, j))
             } else {
                 None
@@ -123,21 +122,21 @@ mod tests {
         [Cell::Empty(0), Cell::Foods(0), Cell::Empty(1)],
         [
             Cell::Empty(2),
-            Cell::Snake {
+            Cell::Snake(Path {
                 entry: Some(Direction::Down),
                 exit: None,
-            },
+            }),
             Cell::Empty(3),
         ],
         [
-            Cell::Snake {
+            Cell::Snake(Path {
                 entry: None,
                 exit: Some(Direction::Up),
-            },
-            Cell::Snake {
+            }),
+            Cell::Snake(Path {
                 entry: Some(Direction::Left),
                 exit: Some(Direction::Right),
-            },
+            }),
             Cell::Empty(4),
         ],
     ];

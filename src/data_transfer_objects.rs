@@ -17,8 +17,11 @@ pub enum Cell {
     Empty,
     Foods,
     /// A snake segment with an entra
-    Snake {
-        entry: Option<Direction>,
-        exit: Option<Direction>,
-    },
+    Snake(Path),
+}
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct Path {
+    pub entry: Option<Direction>,
+    pub exit: Option<Direction>,
 }
