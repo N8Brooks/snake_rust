@@ -1,16 +1,16 @@
 use std::fmt::Debug;
 
-use crate::{data_transfer_objects as dto, value_objects::Position};
+use crate::data_transfer_objects as dto;
 
 pub trait View: Debug {
-    fn swap_cell(&mut self, position: &Position, old: dto::Cell, new: dto::Cell);
+    fn swap_cell(&mut self, position: &dto::Position, old: dto::Cell, new: dto::Cell);
 }
 
 #[derive(Default, Debug)]
-pub struct MockView(pub Vec<(Position, dto::Cell, dto::Cell)>);
+pub struct MockView(pub Vec<(dto::Position, dto::Cell, dto::Cell)>);
 
 impl View for MockView {
-    fn swap_cell(&mut self, position: &Position, old: dto::Cell, new: dto::Cell) {
+    fn swap_cell(&mut self, position: &dto::Position, old: dto::Cell, new: dto::Cell) {
         self.0.push((*position, old, new));
     }
 }
@@ -22,7 +22,7 @@ mod test {
     #[test]
     fn swap_cell() {
         let mut view = MockView::default();
-        let position = Position(0, 1);
+        let position = (0, 1);
         let old = dto::Cell::Foods;
         let new = dto::Cell::Empty;
         view.swap_cell(&position, old, new);

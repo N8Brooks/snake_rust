@@ -2,12 +2,12 @@ use std::collections::VecDeque;
 
 use crate::controller::Controller;
 use crate::data_transfer_objects as dto;
-use crate::value_objects::*;
 use crate::view::View;
 use rand::Rng;
 use rand_chacha::ChaCha8Rng;
 
 use super::board::Board;
+use super::value_objects::*;
 use super::Options;
 
 // TODO: replace `view` with subscription model
@@ -112,7 +112,8 @@ impl<'a, const N_ROWS: usize, const N_COLS: usize> GameState<'a, N_ROWS, N_COLS>
             panic!("invariant invalid snake {:?}", self.board.at(&last_tail))
         };
         self.empty.push(last_tail);
-        self.view.swap_cell(&last_tail, old, dto::Cell::Empty);
+        self.view
+            .swap_cell(&last_tail.into(), old, dto::Cell::Empty);
     }
 
     fn get_next_tail(&self) -> &Position {
@@ -131,7 +132,7 @@ impl<'a, const N_ROWS: usize, const N_COLS: usize> GameState<'a, N_ROWS, N_COLS>
             panic!("invariant not snake {:?}", self.board.at(&next_tail))
         };
         let new = dto::Cell::from(self.board.at(&next_tail));
-        self.view.swap_cell(&next_tail, old, new);
+        self.view.swap_cell(&next_tail.into(), old, new);
     }
 
     fn insert_snake_head(&mut self, next_head: Position, entry: Option<Direction>) {
@@ -144,7 +145,7 @@ impl<'a, const N_ROWS: usize, const N_COLS: usize> GameState<'a, N_ROWS, N_COLS>
         *self.board.at_mut(&next_head) = Cell::Snake(Path { entry, exit: None });
         self.snake.push_front(next_head);
         let new = dto::Cell::from(self.board.at(&next_head));
-        self.view.swap_cell(&next_head, old, new);
+        self.view.swap_cell(&next_head.into(), old, new);
     }
 
     fn remove_empty(&mut self, next_head: &Position, empty_index: usize) {
@@ -180,7 +181,7 @@ impl<'a, const N_ROWS: usize, const N_COLS: usize> GameState<'a, N_ROWS, N_COLS>
                 panic!("invariant invalid snake {:?}", self.board.at(&last_head))
             };
         let new = dto::Cell::from(self.board.at(&last_head));
-        self.view.swap_cell(&last_head, old, new);
+        self.view.swap_cell(&last_head.into(), old, new);
     }
 
     fn insert_food(&mut self) -> Result<(), MaxFoods> {
@@ -197,7 +198,7 @@ impl<'a, const N_ROWS: usize, const N_COLS: usize> GameState<'a, N_ROWS, N_COLS>
             *self.board.at_mut(&position) = Cell::Foods(foods_index);
             self.foods.push(position);
             self.view
-                .swap_cell(&position, dto::Cell::Empty, dto::Cell::Foods);
+                .swap_cell(&position.into(), dto::Cell::Empty, dto::Cell::Foods);
             Ok(())
         }
     }
@@ -390,7 +391,7 @@ mod tests {
             entry: None,
             exit: Some(controller.0.opposite()),
         });
-        assert_eq!(view.0, &[(position, old, dto::Cell::Empty)])
+        assert_eq!(view.0, &[(position.into(), old, dto::Cell::Empty)])
     }
 
     #[test]
@@ -411,7 +412,7 @@ mod tests {
             exit: Some(Direction::Left),
         });
         let new = dto::Cell::Snake(new_path);
-        assert_eq!(view.0.last().unwrap(), &(position, old, new));
+        assert_eq!(view.0.last().unwrap(), &(position.into(), old, new));
     }
 
     #[test]
@@ -431,7 +432,7 @@ mod tests {
             },
         );
         let new = dto::Cell::Snake(Path { entry, exit: None });
-        assert_eq!(view.0, &[(position, dto::Cell::Empty, new)]);
+        assert_eq!(view.0, &[(position.into(), dto::Cell::Empty, new)]);
     }
 
     #[test]
@@ -452,7 +453,7 @@ mod tests {
             exit: None,
         });
         let new = dto::Cell::Snake(new_path);
-        assert_eq!(view.0, &[(Position(1, 1), old, new)]);
+        assert_eq!(view.0, &[(position.into(), old, new)]);
     }
 
     #[test]
@@ -463,7 +464,10 @@ mod tests {
         let mut game_state = setup_loosable_board(&mut controller, &mut view);
         assert!(game_state.insert_food().is_ok());
         game_state.assert_is_foods(&position, 0);
-        assert_eq!(view.0, &[(position, dto::Cell::Empty, dto::Cell::Foods)]);
+        assert_eq!(
+            view.0,
+            &[(position.into(), dto::Cell::Empty, dto::Cell::Foods)]
+        );
     }
 }
 

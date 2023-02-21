@@ -1,3 +1,5 @@
+pub type Position = (usize, usize);
+
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Direction {
     Right,

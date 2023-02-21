@@ -1,7 +1,8 @@
 use std::collections::VecDeque;
 
 use crate::data_transfer_objects as dto;
-use crate::value_objects::*;
+
+use super::value_objects::*;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Board<const N_ROWS: usize, const N_COLS: usize>([[Cell; N_COLS]; N_ROWS]);

@@ -91,6 +91,25 @@ pub enum Plane {
 #[derive(PartialEq, Hash, Eq, Debug, Copy, Clone)]
 pub struct Position(pub usize, pub usize);
 
+impl From<Position> for dto::Position {
+    fn from(position: Position) -> Self {
+        (position.0, position.1)
+    }
+}
+
+#[cfg(test)]
+mod position_tests {
+    use super::Position;
+    use crate::data_transfer_objects::Position as DtoPosition;
+
+    #[test]
+    fn from() {
+        let position = Position(0, 1);
+        let actual = DtoPosition::from(position);
+        assert_eq!(actual, (0, 1));
+    }
+}
+
 #[derive(PartialEq, Debug)]
 pub struct Velocity(pub isize, pub isize);
 

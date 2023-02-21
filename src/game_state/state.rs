@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use crate::{data_transfer_objects as dto, value_objects::*};
+use super::value_objects::*;
 
 use super::board::Board;
 
@@ -28,6 +28,4 @@ impl<const N_ROWS: usize, const N_COLS: usize> State<N_ROWS, N_COLS> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-}
+mod tests {}

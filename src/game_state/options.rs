@@ -57,9 +57,9 @@ impl<const N_ROWS: usize, const N_COLS: usize> Options<N_ROWS, N_COLS> {
 #[cfg(test)]
 mod options_tests {
     use crate::controller::mock_controller::MockController;
-    use crate::value_objects::Direction;
     use crate::view::MockView;
 
+    use super::super::value_objects::Direction;
     use super::*;
 
     #[test]
