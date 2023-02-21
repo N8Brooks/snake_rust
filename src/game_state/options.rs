@@ -1,7 +1,8 @@
 use crate::controller::Controller;
-use crate::game_state::GameState;
 use crate::seeder::*;
 use crate::view::View;
+
+use super::GameState;
 
 #[derive(Debug)]
 pub struct InvalidOptions;
@@ -57,9 +58,9 @@ impl<const N_ROWS: usize, const N_COLS: usize> Options<N_ROWS, N_COLS> {
 #[cfg(test)]
 mod options_tests {
     use crate::controller::mock_controller::MockController;
+    use crate::data_transfer_objects::Direction;
     use crate::view::MockView;
 
-    use super::super::value_objects::Direction;
     use super::*;
 
     #[test]

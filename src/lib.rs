@@ -1,5 +1,5 @@
 pub mod controller;
-mod data_transfer_objects;
+pub mod data_transfer_objects;
 pub mod game_state;
-mod seeder;
+pub mod seeder;
 pub mod view;

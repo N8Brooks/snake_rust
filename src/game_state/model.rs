@@ -6,20 +6,18 @@ use crate::view::View;
 use rand::Rng;
 use rand_chacha::ChaCha8Rng;
 
-use super::board::Board;
-use super::value_objects::*;
-use super::Options;
+use super::{options::Options, state::*};
 
 // TODO: replace `view` with subscription model
 // TODO: some testing for `iterate_turn` is redundant
-// TODO: move `move_in` to position with `Board` generic
+// TODO: move `move_in` to position with `State` generic
 
 #[derive(Debug)]
 pub struct MaxFoods;
 
 #[derive(Debug)]
 pub struct GameState<'a, const N_ROWS: usize, const N_COLS: usize> {
-    board: Board<N_ROWS, N_COLS>,
+    board: State<N_ROWS, N_COLS>,
     controller: &'a mut dyn Controller,
     view: &'a mut dyn View,
     empty: Vec<Position>,
@@ -34,7 +32,7 @@ impl<'a, const N_ROWS: usize, const N_COLS: usize> GameState<'a, N_ROWS, N_COLS>
         controller: &'a mut dyn Controller,
         view: &'a mut dyn View,
     ) -> GameState<'a, N_ROWS, N_COLS> {
-        let board = Board::<N_ROWS, N_COLS>::default();
+        let board = State::<N_ROWS, N_COLS>::default();
         let mut game_state = options.get_init_game_state(board, controller, view);
         options.add_foods(&mut game_state);
         game_state
@@ -42,7 +40,7 @@ impl<'a, const N_ROWS: usize, const N_COLS: usize> GameState<'a, N_ROWS, N_COLS>
 
     /// This builds a `GameState` from a board without checking for invariants
     pub fn from_board(
-        board: Board<N_ROWS, N_COLS>,
+        board: State<N_ROWS, N_COLS>,
         controller: &'a mut dyn Controller,
         view: &'a mut dyn View,
         rng: ChaCha8Rng,
@@ -243,7 +241,7 @@ mod tests {
 
     #[test]
     pub fn from_board() {
-        let board = Board::from([[Cell::Snake(Path {
+        let board = State::from([[Cell::Snake(Path {
             entry: None,
             exit: None,
         })]]);
@@ -363,7 +361,7 @@ mod tests {
         controller: &'a mut dyn Controller,
         view: &'a mut dyn View,
     ) -> GameState<'a, 2, 3> {
-        let board = Board::from(BOARD);
+        let board = State::from(BOARD);
         let rng = MockSeeder(0).get_rng();
         GameState::from_board(board, controller, view, rng)
     }
@@ -474,7 +472,7 @@ mod tests {
 impl<const N_ROWS: usize, const N_COLS: usize> Options<N_ROWS, N_COLS> {
     fn get_init_game_state<'a>(
         &self,
-        board: Board<N_ROWS, N_COLS>,
+        board: State<N_ROWS, N_COLS>,
         controller: &'a mut dyn Controller,
         view: &'a mut dyn View,
     ) -> GameState<'a, N_ROWS, N_COLS> {
@@ -536,7 +534,7 @@ mod options_tests {
         let mut controller = MockController(Direction::Right);
         let mut view = MockView::default();
         let game_state = options.build(&mut controller, &mut view).unwrap();
-        assert_eq!(game_state.board, Board::from(EXPECTED_BOARD));
+        assert_eq!(game_state.board, State::from(EXPECTED_BOARD));
         assert_eq!(game_state.empty, Vec::from(EXPECTED_EMPTY));
         assert_eq!(game_state.snake, VecDeque::from(EXPECTED_SNAKE));
     }
