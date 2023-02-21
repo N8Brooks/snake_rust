@@ -3,6 +3,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 
+// TODO: rely on trait instead of implementation for `get_rng`
+
 pub trait Seeder {
     fn get_seed(&self) -> u64;
 
