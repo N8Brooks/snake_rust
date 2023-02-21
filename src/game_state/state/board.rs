@@ -1,5 +1,7 @@
 use std::collections::VecDeque;
 
+use crate::data_transfer_objects as _dto; // Limited usage in `from`
+
 use super::value_objects::*;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -35,6 +37,10 @@ impl<const N_ROWS: usize, const N_COLS: usize> Default for Board<N_ROWS, N_COLS>
 }
 
 impl<const N_ROWS: usize, const N_COLS: usize> Board<N_ROWS, N_COLS> {
+    pub fn new(board: [[Cell; N_COLS]; N_ROWS]) -> Self {
+        Board(board)
+    }
+
     pub fn get_empty(&self) -> Vec<Position> {
         Vec::from_iter(self.0.iter().enumerate().flat_map(|(i, row)| {
             row.iter()
@@ -110,11 +116,28 @@ impl<const N_ROWS: usize, const N_COLS: usize> Board<N_ROWS, N_COLS> {
     }
 }
 
-impl<const N_ROWS: usize, const N_COLS: usize> From<[[Cell; N_COLS]; N_ROWS]>
+impl<const N_ROWS: usize, const N_COLS: usize> From<[[_dto::Cell; N_COLS]; N_ROWS]>
     for Board<N_ROWS, N_COLS>
 {
-    fn from(board: [[Cell; N_COLS]; N_ROWS]) -> Self {
-        Board(board)
+    fn from(board: [[_dto::Cell; N_COLS]; N_ROWS]) -> Self {
+        let mut empty_count = 0;
+        let mut foods_count = 0;
+        let board = board.map(|row| {
+            row.map(|cell| match cell {
+                _dto::Cell::Empty => {
+                    let empty_index = empty_count;
+                    empty_count += 1;
+                    Cell::Empty(empty_index)
+                }
+                _dto::Cell::Foods => {
+                    let foods_index = foods_count;
+                    foods_count += 1;
+                    Cell::Foods(foods_index)
+                }
+                _dto::Cell::Snake(path) => Cell::Snake(path),
+            })
+        });
+        Board::new(board)
     }
 }
 
@@ -157,21 +180,21 @@ mod tests {
 
     #[test]
     fn get_empty() {
-        let board = Board::from(INPUT_BOARD);
+        let board = Board::new(INPUT_BOARD);
         let empty = board.get_empty();
         assert_eq!(empty, EXPECTED_EMPTY);
     }
 
     #[test]
     fn parse_snake() {
-        let board = Board::from(INPUT_BOARD);
+        let board = Board::new(INPUT_BOARD);
         let snake = board.get_snake();
         assert_eq!(snake, EXPECTED_SNAKE);
     }
 
     #[test]
     fn at() {
-        let board = Board::from(INPUT_BOARD);
+        let board = Board::new(INPUT_BOARD);
         let position = Position(0, 1);
         let cell = board.at(&position);
         assert_eq!(cell, Cell::Foods(0));
@@ -179,9 +202,38 @@ mod tests {
 
     #[test]
     fn at_mut() {
-        let mut board = Board::from(INPUT_BOARD);
+        let mut board = Board::new(INPUT_BOARD);
         let position = Position(2, 2);
         let cell = *board.at_mut(&position);
         assert_eq!(cell, Cell::Empty(4));
+    }
+
+    const DTO_BOARD: [[_dto::Cell; 3]; 3] = [
+        [_dto::Cell::Empty, _dto::Cell::Foods, _dto::Cell::Empty],
+        [
+            _dto::Cell::Empty,
+            _dto::Cell::Snake(Path {
+                entry: Some(Direction::Down),
+                exit: None,
+            }),
+            _dto::Cell::Empty,
+        ],
+        [
+            _dto::Cell::Snake(Path {
+                entry: None,
+                exit: Some(Direction::Up),
+            }),
+            _dto::Cell::Snake(Path {
+                entry: Some(Direction::Left),
+                exit: Some(Direction::Right),
+            }),
+            _dto::Cell::Empty,
+        ],
+    ];
+
+    #[test]
+    fn from_dto() {
+        let board: Board<3, 3> = DTO_BOARD.into();
+        assert_eq!(board, Board::new(INPUT_BOARD));
     }
 }

@@ -1,6 +1,6 @@
-mod model;
+mod game_state;
 mod options;
 mod state;
 
-pub use model::GameState;
+pub use game_state::GameState;
 pub use options::Options;

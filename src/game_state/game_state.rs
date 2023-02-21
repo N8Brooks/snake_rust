@@ -1,12 +1,13 @@
-use std::collections::VecDeque;
-
 use crate::controller::Controller;
 use crate::data_transfer_objects as dto;
 use crate::view::View;
 use rand::Rng;
 use rand_chacha::ChaCha8Rng;
 
-use super::{options::Options, state::*};
+use super::{
+    options::Options,
+    state::{board::Board, state::State, *},
+};
 
 // TODO: replace `view` with subscription model
 // TODO: some testing for `iterate_turn` is redundant
@@ -17,13 +18,9 @@ pub struct MaxFoods;
 
 #[derive(Debug)]
 pub struct GameState<'a, const N_ROWS: usize, const N_COLS: usize> {
-    board: State<N_ROWS, N_COLS>,
+    state: State<N_ROWS, N_COLS>,
     controller: &'a mut dyn Controller,
     view: &'a mut dyn View,
-    empty: Vec<Position>,
-    foods: Vec<Position>,
-    snake: VecDeque<Position>,
-    rng: ChaCha8Rng,
 }
 
 impl<'a, const N_ROWS: usize, const N_COLS: usize> GameState<'a, N_ROWS, N_COLS> {
@@ -32,7 +29,7 @@ impl<'a, const N_ROWS: usize, const N_COLS: usize> GameState<'a, N_ROWS, N_COLS>
         controller: &'a mut dyn Controller,
         view: &'a mut dyn View,
     ) -> GameState<'a, N_ROWS, N_COLS> {
-        let board = State::<N_ROWS, N_COLS>::default();
+        let board = Board::<N_ROWS, N_COLS>::default();
         let mut game_state = options.get_init_game_state(board, controller, view);
         options.add_foods(&mut game_state);
         game_state
@@ -40,36 +37,29 @@ impl<'a, const N_ROWS: usize, const N_COLS: usize> GameState<'a, N_ROWS, N_COLS>
 
     /// This builds a `GameState` from a board without checking for invariants
     pub fn from_board(
-        board: State<N_ROWS, N_COLS>,
+        board: Board<N_ROWS, N_COLS>,
         controller: &'a mut dyn Controller,
         view: &'a mut dyn View,
         rng: ChaCha8Rng,
     ) -> GameState<'a, N_ROWS, N_COLS> {
-        let empty = board.get_empty();
-        let foods = board.get_foods();
-        let snake = board.get_snake();
         GameState {
-            board,
-            empty,
-            foods,
-            snake,
+            state: State::new(board, rng),
             controller,
             view,
-            rng,
         }
     }
 
     fn get_next_head(&self, direction: &Direction) -> Position {
-        self.board.move_in(self.get_last_head(), direction)
+        self.state.board.move_in(self.get_last_head(), direction)
     }
 
     pub fn iterate_turn(&mut self) -> dto::Status {
         let direction = self.controller.get_direction();
         let next_head = self.get_next_head(&direction);
-        match self.board.at(&next_head) {
+        match self.state.board.at(&next_head) {
             Cell::Empty(_) => {
                 self.remove_last_tail();
-                let entry = if self.snake.is_empty() {
+                let entry = if self.state.snake.is_empty() {
                     None
                 } else {
                     self.update_next_tail();
@@ -90,7 +80,7 @@ impl<'a, const N_ROWS: usize, const N_COLS: usize> GameState<'a, N_ROWS, N_COLS>
     }
 
     fn check_is_won_status(&self) -> dto::Status {
-        if self.foods.is_empty() && self.empty.is_empty() {
+        if self.state.foods.is_empty() && self.state.empty.is_empty() {
             dto::Status::Over { is_won: true }
         } else {
             dto::Status::Ongoing
@@ -98,103 +88,114 @@ impl<'a, const N_ROWS: usize, const N_COLS: usize> GameState<'a, N_ROWS, N_COLS>
     }
 
     fn remove_last_tail(&mut self) {
-        let last_tail = self.snake.pop_back().expect("non empty snake last tail");
-        let old = dto::Cell::from(self.board.at(&last_tail));
-        *self.board.at_mut(&last_tail) = if let Cell::Snake(Path {
+        let last_tail = self
+            .state
+            .snake
+            .pop_back()
+            .expect("non empty snake last tail");
+        let old = dto::Cell::from(self.state.board.at(&last_tail));
+        *self.state.board.at_mut(&last_tail) = if let Cell::Snake(Path {
             entry: None,
             exit: _,
-        }) = self.board.at(&last_tail)
+        }) = self.state.board.at(&last_tail)
         {
-            Cell::Empty(self.empty.len())
+            Cell::Empty(self.state.empty.len())
         } else {
-            panic!("invariant invalid snake {:?}", self.board.at(&last_tail))
+            panic!(
+                "invariant invalid snake {:?}",
+                self.state.board.at(&last_tail)
+            )
         };
-        self.empty.push(last_tail);
+        self.state.empty.push(last_tail);
         self.view
             .swap_cell(&last_tail.into(), old, dto::Cell::Empty);
     }
 
     fn get_next_tail(&self) -> &Position {
-        self.snake.back().expect("non empty snake next tail")
+        self.state.snake.back().expect("non empty snake next tail")
     }
 
     fn update_next_tail(&mut self) {
         let next_tail = *self.get_next_tail();
-        let old = dto::Cell::from(self.board.at(&next_tail));
-        *self.board.at_mut(&next_tail) = if let Cell::Snake(path) = self.board.at(&next_tail) {
-            Cell::Snake(Path {
-                entry: None,
-                exit: path.exit,
-            })
-        } else {
-            panic!("invariant not snake {:?}", self.board.at(&next_tail))
-        };
-        let new = dto::Cell::from(self.board.at(&next_tail));
+        let old = dto::Cell::from(self.state.board.at(&next_tail));
+        *self.state.board.at_mut(&next_tail) =
+            if let Cell::Snake(path) = self.state.board.at(&next_tail) {
+                Cell::Snake(Path {
+                    entry: None,
+                    exit: path.exit,
+                })
+            } else {
+                panic!("invariant not snake {:?}", self.state.board.at(&next_tail))
+            };
+        let new = dto::Cell::from(self.state.board.at(&next_tail));
         self.view.swap_cell(&next_tail.into(), old, new);
     }
 
     fn insert_snake_head(&mut self, next_head: Position, entry: Option<Direction>) {
-        let old = dto::Cell::from(self.board.at(&next_head));
-        match self.board.at(&next_head) {
+        let old = dto::Cell::from(self.state.board.at(&next_head));
+        match self.state.board.at(&next_head) {
             Cell::Empty(empty_index) => self.remove_empty(&next_head, empty_index),
             Cell::Foods(foods_index) => self.remove_foods(&next_head, foods_index),
             snake => panic!("unexpected snake {snake:?}"),
         }
-        *self.board.at_mut(&next_head) = Cell::Snake(Path { entry, exit: None });
-        self.snake.push_front(next_head);
-        let new = dto::Cell::from(self.board.at(&next_head));
+        *self.state.board.at_mut(&next_head) = Cell::Snake(Path { entry, exit: None });
+        self.state.snake.push_front(next_head);
+        let new = dto::Cell::from(self.state.board.at(&next_head));
         self.view.swap_cell(&next_head.into(), old, new);
     }
 
     fn remove_empty(&mut self, next_head: &Position, empty_index: usize) {
-        assert_eq!(&self.empty.swap_remove(empty_index), next_head);
-        if empty_index < self.empty.len() {
-            let position = self.empty[empty_index];
-            *self.board.at_mut(&position) = Cell::Empty(empty_index);
+        assert_eq!(&self.state.empty.swap_remove(empty_index), next_head);
+        if empty_index < self.state.empty.len() {
+            let position = self.state.empty[empty_index];
+            *self.state.board.at_mut(&position) = Cell::Empty(empty_index);
         }
     }
 
     fn remove_foods(&mut self, next_head: &Position, foods_index: usize) {
-        assert_eq!(&self.foods.swap_remove(foods_index), next_head);
-        if foods_index < self.foods.len() {
-            let position = self.foods[foods_index];
-            *self.board.at_mut(&position) = Cell::Foods(foods_index);
+        assert_eq!(&self.state.foods.swap_remove(foods_index), next_head);
+        if foods_index < self.state.foods.len() {
+            let position = self.state.foods[foods_index];
+            *self.state.board.at_mut(&position) = Cell::Foods(foods_index);
         }
     }
 
     fn get_last_head(&self) -> &Position {
-        self.snake.front().expect("non empty snake last head")
+        self.state.snake.front().expect("non empty snake last head")
     }
 
     fn update_last_head(&mut self, direction: &Direction) {
         let last_head = *self.get_last_head();
-        let old = dto::Cell::from(self.board.at(&last_head));
-        *self.board.at_mut(&last_head) =
-            if let Cell::Snake(Path { entry, exit: None }) = self.board.at(&last_head) {
+        let old = dto::Cell::from(self.state.board.at(&last_head));
+        *self.state.board.at_mut(&last_head) =
+            if let Cell::Snake(Path { entry, exit: None }) = self.state.board.at(&last_head) {
                 Cell::Snake(Path {
                     entry,
                     exit: Some(*direction),
                 })
             } else {
-                panic!("invariant invalid snake {:?}", self.board.at(&last_head))
+                panic!(
+                    "invariant invalid snake {:?}",
+                    self.state.board.at(&last_head)
+                )
             };
-        let new = dto::Cell::from(self.board.at(&last_head));
+        let new = dto::Cell::from(self.state.board.at(&last_head));
         self.view.swap_cell(&last_head.into(), old, new);
     }
 
     fn insert_food(&mut self) -> Result<(), MaxFoods> {
-        if self.empty.is_empty() {
+        if self.state.empty.is_empty() {
             Err(MaxFoods)
         } else {
-            let empty_index = self.rng.gen_range(0..self.empty.len());
-            let position = self.empty.swap_remove(empty_index);
-            if empty_index < self.empty.len() {
-                let position = self.empty[empty_index];
-                *self.board.at_mut(&position) = Cell::Empty(empty_index);
+            let empty_index = self.state.rng.gen_range(0..self.state.empty.len());
+            let position = self.state.empty.swap_remove(empty_index);
+            if empty_index < self.state.empty.len() {
+                let position = self.state.empty[empty_index];
+                *self.state.board.at_mut(&position) = Cell::Empty(empty_index);
             }
-            let foods_index = self.foods.len();
-            *self.board.at_mut(&position) = Cell::Foods(foods_index);
-            self.foods.push(position);
+            let foods_index = self.state.foods.len();
+            *self.state.board.at_mut(&position) = Cell::Foods(foods_index);
+            self.state.foods.push(position);
             self.view
                 .swap_cell(&position.into(), dto::Cell::Empty, dto::Cell::Foods);
             Ok(())
@@ -204,6 +205,8 @@ impl<'a, const N_ROWS: usize, const N_COLS: usize> GameState<'a, N_ROWS, N_COLS>
 
 #[cfg(test)]
 mod tests {
+    use std::collections::VecDeque;
+
     use rand::SeedableRng;
 
     use crate::{
@@ -216,32 +219,32 @@ mod tests {
 
     impl<'a, const N_ROWS: usize, const N_COLS: usize> GameState<'a, N_ROWS, N_COLS> {
         fn assert_is_empty(&self, position: &Position, empty_index: usize) {
-            assert_eq!(Cell::Empty(empty_index), self.board.at(position));
-            assert_eq!(self.empty[empty_index], *position);
-            assert!(self.empty.contains(position));
-            assert!(!self.foods.contains(position));
-            assert!(!self.snake.contains(position));
+            assert_eq!(Cell::Empty(empty_index), self.state.board.at(position));
+            assert_eq!(self.state.empty[empty_index], *position);
+            assert!(self.state.empty.contains(position));
+            assert!(!self.state.foods.contains(position));
+            assert!(!self.state.snake.contains(position));
         }
 
         fn assert_is_snake_with_path(&self, position: &Position, path: Path) {
-            assert_eq!(self.board.at(position), Cell::Snake(path));
-            assert!(!self.empty.contains(position));
-            assert!(!self.foods.contains(position));
-            assert!(self.snake.contains(position));
+            assert_eq!(self.state.board.at(position), Cell::Snake(path));
+            assert!(!self.state.empty.contains(position));
+            assert!(!self.state.foods.contains(position));
+            assert!(self.state.snake.contains(position));
         }
 
         fn assert_is_foods(&self, position: &Position, foods_index: usize) {
-            assert_eq!(self.board.at(position), Cell::Foods(foods_index));
-            assert_eq!(self.foods[foods_index], *position);
-            assert!(!self.empty.contains(position));
-            assert!(self.foods.contains(position));
-            assert!(!self.snake.contains(position));
+            assert_eq!(self.state.board.at(position), Cell::Foods(foods_index));
+            assert_eq!(self.state.foods[foods_index], *position);
+            assert!(!self.state.empty.contains(position));
+            assert!(self.state.foods.contains(position));
+            assert!(!self.state.snake.contains(position));
         }
     }
 
     #[test]
     pub fn from_board() {
-        let board = State::from([[Cell::Snake(Path {
+        let board = Board::new([[Cell::Snake(Path {
             entry: None,
             exit: None,
         })]]);
@@ -249,8 +252,8 @@ mod tests {
         let mut view = MockView::default();
         let rng = ChaCha8Rng::seed_from_u64(0);
         let game_state = GameState::from_board(board, &mut controller, &mut view, rng);
-        assert_eq!(game_state.empty, Vec::new());
-        assert_eq!(game_state.snake, VecDeque::from([Position(0, 0)]));
+        assert_eq!(game_state.state.empty, Vec::new());
+        assert_eq!(game_state.state.snake, VecDeque::from([Position(0, 0)]));
     }
 
     #[test]
@@ -361,7 +364,7 @@ mod tests {
         controller: &'a mut dyn Controller,
         view: &'a mut dyn View,
     ) -> GameState<'a, 2, 3> {
-        let board = State::from(BOARD);
+        let board = Board::new(BOARD);
         let rng = MockSeeder(0).get_rng();
         GameState::from_board(board, controller, view, rng)
     }
@@ -472,21 +475,15 @@ mod tests {
 impl<const N_ROWS: usize, const N_COLS: usize> Options<N_ROWS, N_COLS> {
     fn get_init_game_state<'a>(
         &self,
-        board: State<N_ROWS, N_COLS>,
+        board: Board<N_ROWS, N_COLS>,
         controller: &'a mut dyn Controller,
         view: &'a mut dyn View,
     ) -> GameState<'a, N_ROWS, N_COLS> {
-        let empty = board.get_empty();
-        let foods = board.get_foods();
-        let snake = board.get_snake();
+        let state = State::new(board, self.seeder.get_rng());
         GameState {
-            board,
-            empty,
-            foods,
-            snake,
+            state,
             controller,
             view,
-            rng: self.seeder.get_rng(),
         }
     }
 
@@ -516,26 +513,14 @@ mod options_tests {
         [Cell::Empty(5), Cell::Empty(6), Cell::Empty(0)],
     ];
 
-    const EXPECTED_EMPTY: [Position; 7] = [
-        Position(2, 2),
-        Position(0, 1),
-        Position(0, 2),
-        Position(1, 0),
-        Position(1, 2),
-        Position(2, 0),
-        Position(2, 1),
-    ];
-
-    const EXPECTED_SNAKE: [Position; 1] = [Position(1, 1)];
-
     #[test]
     fn build_with_valid() {
+        // TODO: this test is tightly coupled
         let options = Options::<3, 3>::with_seed(1, 0);
         let mut controller = MockController(Direction::Right);
         let mut view = MockView::default();
         let game_state = options.build(&mut controller, &mut view).unwrap();
-        assert_eq!(game_state.board, State::from(EXPECTED_BOARD));
-        assert_eq!(game_state.empty, Vec::from(EXPECTED_EMPTY));
-        assert_eq!(game_state.snake, VecDeque::from(EXPECTED_SNAKE));
+        let board = Board::new(EXPECTED_BOARD);
+        assert_eq!(game_state.state.board, board);
     }
 }
