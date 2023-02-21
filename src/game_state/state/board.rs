@@ -1,7 +1,5 @@
 use std::collections::VecDeque;
 
-use crate::data_transfer_objects as dto;
-
 use super::value_objects::*;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -120,31 +118,6 @@ impl<const N_ROWS: usize, const N_COLS: usize> From<[[Cell; N_COLS]; N_ROWS]>
     }
 }
 
-impl<const N_ROWS: usize, const N_COLS: usize> From<[[dto::Cell; N_COLS]; N_ROWS]>
-    for Board<N_ROWS, N_COLS>
-{
-    fn from(board: [[dto::Cell; N_COLS]; N_ROWS]) -> Self {
-        let mut empty_count = 0;
-        let mut foods_count = 0;
-        let board = board.map(|row| {
-            row.map(|cell| match cell {
-                dto::Cell::Empty => {
-                    let empty_index = empty_count;
-                    empty_count += 1;
-                    Cell::Empty(empty_index)
-                }
-                dto::Cell::Foods => {
-                    let foods_index = foods_count;
-                    foods_count += 1;
-                    Cell::Foods(foods_index)
-                }
-                dto::Cell::Snake(path) => Cell::Snake(path),
-            })
-        });
-        Board::from(board)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -169,29 +142,6 @@ mod tests {
                 exit: Some(Direction::Right),
             }),
             Cell::Empty(4),
-        ],
-    ];
-
-    const DTO_BOARD: [[dto::Cell; 3]; 3] = [
-        [dto::Cell::Empty, dto::Cell::Foods, dto::Cell::Empty],
-        [
-            dto::Cell::Empty,
-            dto::Cell::Snake(Path {
-                entry: Some(Direction::Down),
-                exit: None,
-            }),
-            dto::Cell::Empty,
-        ],
-        [
-            dto::Cell::Snake(Path {
-                entry: None,
-                exit: Some(Direction::Up),
-            }),
-            dto::Cell::Snake(Path {
-                entry: Some(Direction::Left),
-                exit: Some(Direction::Right),
-            }),
-            dto::Cell::Empty,
         ],
     ];
 
@@ -233,11 +183,5 @@ mod tests {
         let position = Position(2, 2);
         let cell = *board.at_mut(&position);
         assert_eq!(cell, Cell::Empty(4));
-    }
-
-    #[test]
-    fn from_dto() {
-        let board: Board<3, 3> = DTO_BOARD.into();
-        assert_eq!(board, Board::from(INPUT_BOARD));
     }
 }
