@@ -18,7 +18,6 @@ pub enum Status {
 pub enum Cell {
     Empty,
     Foods,
-    /// A snake segment with an entra
     Snake(Path),
 }
 
