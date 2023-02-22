@@ -6,6 +6,9 @@ use crate::data_transfer_objects as dto;
 
 use super::{board::Board, value_objects::*};
 
+// TODO: add update object
+// TODO: add is_valid
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct State<const N_ROWS: usize, const N_COLS: usize> {
     pub board: Board<N_ROWS, N_COLS>,
@@ -29,6 +32,26 @@ impl<const N_ROWS: usize, const N_COLS: usize> State<N_ROWS, N_COLS> {
         }
     }
 
+    pub fn is_valid(&self) {
+        todo!()
+    }
+
+    fn is_board_valid(&self) {
+        todo!()
+    }
+
+    fn is_empty_valid(&self) {
+        todo!()
+    }
+
+    fn is_foods_valid(&self) {
+        todo!()
+    }
+
+    fn is_snake_valid(&self) {
+        todo!()
+    }
+
     pub fn check_is_won_status(&self) -> dto::Status {
         if self.empty.is_empty() && self.foods.is_empty() {
             dto::Status::Over { is_won: true }
@@ -40,6 +63,21 @@ impl<const N_ROWS: usize, const N_COLS: usize> State<N_ROWS, N_COLS> {
     pub fn get_next_head(&self, direction: &Direction) -> Position {
         let head = self.snake.front().expect("snake head");
         self.board.move_in(head, direction)
+    }
+
+    pub fn remove_last_tail(&mut self) -> Position {
+        let tail = self.snake.pop_back().expect("snake tail");
+        *self.board.at_mut(&tail) = if let Cell::Snake(Path {
+            entry: None,
+            exit: _,
+        }) = self.board.at(&tail)
+        {
+            Cell::Empty(self.empty.len())
+        } else {
+            panic!("invariant invalid snake {:?}", self.board.at(&tail))
+        };
+        self.empty.push(tail);
+        tail
     }
 }
 
@@ -83,8 +121,7 @@ mod tests {
         State::new(board, rng)
     }
 
-    #[test]
-    fn check_is_won_status_true() {
+    fn get_two_cell() -> State<1, 2> {
         let direction = Direction::Right;
         let board = Board::new([[
             Cell::Snake(Path {
@@ -97,9 +134,13 @@ mod tests {
             }),
         ]]);
         let rng = MockSeeder(0).get_rng();
-        let state = State::new(board, rng);
+        State::new(board, rng)
+    }
+
+    #[test]
+    fn check_is_won_status_true() {
         assert_eq!(
-            state.check_is_won_status(),
+            get_two_cell().check_is_won_status(),
             dto::Status::Over { is_won: true }
         );
     }
@@ -117,5 +158,14 @@ mod tests {
         let direction = Direction::Right;
         let head = state.get_next_head(&direction);
         assert_eq!(head, Position(1, 2));
+    }
+
+    #[test]
+    fn remove_last_tail() {
+        let mut state = get_mock_state();
+        let position = Position(0, 2);
+        assert_eq!(state.remove_last_tail(), position);
+        assert_eq!(state.board.at(&position), Cell::Empty(1))
+        // assert.is_valid()
     }
 }

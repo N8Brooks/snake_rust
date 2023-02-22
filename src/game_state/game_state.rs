@@ -53,7 +53,8 @@ impl<'a, const N_ROWS: usize, const N_COLS: usize> GameState<'a, N_ROWS, N_COLS>
         let next_head = self.state.get_next_head(&direction);
         match self.state.board.at(&next_head) {
             Cell::Empty(_) => {
-                self.remove_last_tail();
+                let last_tail = self.state.remove_last_tail();
+                self.cell_updated(last_tail);
                 let entry = if self.state.snake.is_empty() {
                     None
                 } else {
@@ -74,26 +75,9 @@ impl<'a, const N_ROWS: usize, const N_COLS: usize> GameState<'a, N_ROWS, N_COLS>
         }
     }
 
-    fn remove_last_tail(&mut self) {
-        let last_tail = self
-            .state
-            .snake
-            .pop_back()
-            .expect("non empty snake last tail");
-        *self.state.board.at_mut(&last_tail) = if let Cell::Snake(Path {
-            entry: None,
-            exit: _,
-        }) = self.state.board.at(&last_tail)
-        {
-            Cell::Empty(self.state.empty.len())
-        } else {
-            panic!(
-                "invariant invalid snake {:?}",
-                self.state.board.at(&last_tail)
-            )
-        };
-        self.state.empty.push(last_tail);
-        self.view.swap_cell(&last_tail.into(), dto::Cell::Empty);
+    fn cell_updated(&mut self, position: Position) {
+        let cell = self.state.board.at(&position);
+        self.view.swap_cell(&position.into(), cell.into());
     }
 
     fn get_next_tail(&self) -> &Position {
@@ -353,23 +337,12 @@ mod tests {
     }
 
     #[test]
-    fn remove_last_tail() {
-        let position = Position(0, 2);
-        let mut controller = MockController(Direction::Right);
-        let mut view = MockView::default();
-        let mut game_state = setup_loosable_board(&mut controller, &mut view);
-        game_state.remove_last_tail();
-        game_state.assert_is_empty(&position, 1);
-        assert_eq!(view.0, &[(position.into(), dto::Cell::Empty)])
-    }
-
-    #[test]
     fn update_next_tail() {
         let position = Position(0, 1);
         let mut controller = MockController(Direction::Right);
         let mut view = MockView::default();
         let mut game_state = setup_loosable_board(&mut controller, &mut view);
-        game_state.remove_last_tail();
+        game_state.state.remove_last_tail();
         game_state.update_next_tail();
         let new_path = Path {
             entry: None,
