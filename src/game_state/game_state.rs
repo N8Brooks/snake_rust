@@ -73,17 +73,9 @@ impl<'a, const N_ROWS: usize, const N_COLS: usize> GameState<'a, N_ROWS, N_COLS>
                 self.update_last_head(&direction);
                 self.insert_snake_head(next_head, Some(direction.opposite()));
                 let _ = self.insert_food();
-                self.check_is_won_status()
+                self.state.check_is_won_status()
             }
             Cell::Snake { .. } => dto::Status::Over { is_won: false },
-        }
-    }
-
-    fn check_is_won_status(&self) -> dto::Status {
-        if self.state.foods.is_empty() && self.state.empty.is_empty() {
-            dto::Status::Over { is_won: true }
-        } else {
-            dto::Status::Ongoing
         }
     }
 
