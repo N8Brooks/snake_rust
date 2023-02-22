@@ -85,7 +85,6 @@ impl<'a, const N_ROWS: usize, const N_COLS: usize> GameState<'a, N_ROWS, N_COLS>
             .snake
             .pop_back()
             .expect("non empty snake last tail");
-        let old = dto::Cell::from(self.state.board.at(&last_tail));
         *self.state.board.at_mut(&last_tail) = if let Cell::Snake(Path {
             entry: None,
             exit: _,
@@ -99,8 +98,7 @@ impl<'a, const N_ROWS: usize, const N_COLS: usize> GameState<'a, N_ROWS, N_COLS>
             )
         };
         self.state.empty.push(last_tail);
-        self.view
-            .swap_cell(&last_tail.into(), old, dto::Cell::Empty);
+        self.view.swap_cell(&last_tail.into(), dto::Cell::Empty);
     }
 
     fn get_next_tail(&self) -> &Position {
@@ -109,7 +107,6 @@ impl<'a, const N_ROWS: usize, const N_COLS: usize> GameState<'a, N_ROWS, N_COLS>
 
     fn update_next_tail(&mut self) {
         let next_tail = *self.get_next_tail();
-        let old = dto::Cell::from(self.state.board.at(&next_tail));
         *self.state.board.at_mut(&next_tail) =
             if let Cell::Snake(path) = self.state.board.at(&next_tail) {
                 Cell::Snake(Path {
@@ -120,11 +117,10 @@ impl<'a, const N_ROWS: usize, const N_COLS: usize> GameState<'a, N_ROWS, N_COLS>
                 panic!("invariant not snake {:?}", self.state.board.at(&next_tail))
             };
         let new = dto::Cell::from(self.state.board.at(&next_tail));
-        self.view.swap_cell(&next_tail.into(), old, new);
+        self.view.swap_cell(&next_tail.into(), new);
     }
 
     fn insert_snake_head(&mut self, next_head: Position, entry: Option<Direction>) {
-        let old = dto::Cell::from(self.state.board.at(&next_head));
         match self.state.board.at(&next_head) {
             Cell::Empty(empty_index) => self.remove_empty(&next_head, empty_index),
             Cell::Foods(foods_index) => self.remove_foods(&next_head, foods_index),
@@ -133,7 +129,7 @@ impl<'a, const N_ROWS: usize, const N_COLS: usize> GameState<'a, N_ROWS, N_COLS>
         *self.state.board.at_mut(&next_head) = Cell::Snake(Path { entry, exit: None });
         self.state.snake.push_front(next_head);
         let new = dto::Cell::from(self.state.board.at(&next_head));
-        self.view.swap_cell(&next_head.into(), old, new);
+        self.view.swap_cell(&next_head.into(), new);
     }
 
     fn remove_empty(&mut self, next_head: &Position, empty_index: usize) {
@@ -158,7 +154,6 @@ impl<'a, const N_ROWS: usize, const N_COLS: usize> GameState<'a, N_ROWS, N_COLS>
 
     fn update_last_head(&mut self, direction: &Direction) {
         let last_head = *self.get_last_head();
-        let old = dto::Cell::from(self.state.board.at(&last_head));
         *self.state.board.at_mut(&last_head) =
             if let Cell::Snake(Path { entry, exit: None }) = self.state.board.at(&last_head) {
                 Cell::Snake(Path {
@@ -172,7 +167,7 @@ impl<'a, const N_ROWS: usize, const N_COLS: usize> GameState<'a, N_ROWS, N_COLS>
                 )
             };
         let new = dto::Cell::from(self.state.board.at(&last_head));
-        self.view.swap_cell(&last_head.into(), old, new);
+        self.view.swap_cell(&last_head.into(), new);
     }
 
     fn insert_food(&mut self) -> Result<(), MaxFoods> {
@@ -188,8 +183,7 @@ impl<'a, const N_ROWS: usize, const N_COLS: usize> GameState<'a, N_ROWS, N_COLS>
             let foods_index = self.state.foods.len();
             *self.state.board.at_mut(&position) = Cell::Foods(foods_index);
             self.state.foods.push(position);
-            self.view
-                .swap_cell(&position.into(), dto::Cell::Empty, dto::Cell::Foods);
+            self.view.swap_cell(&position.into(), dto::Cell::Foods);
             Ok(())
         }
     }
@@ -380,11 +374,7 @@ mod tests {
         let mut game_state = setup_loosable_board(&mut controller, &mut view);
         game_state.remove_last_tail();
         game_state.assert_is_empty(&position, 1);
-        let old = dto::Cell::Snake(Path {
-            entry: None,
-            exit: Some(controller.0.opposite()),
-        });
-        assert_eq!(view.0, &[(position.into(), old, dto::Cell::Empty)])
+        assert_eq!(view.0, &[(position.into(), dto::Cell::Empty)])
     }
 
     #[test]
@@ -400,12 +390,8 @@ mod tests {
             exit: Some(Direction::Left),
         };
         game_state.assert_is_snake_with_path(&position, new_path);
-        let old = dto::Cell::Snake(Path {
-            entry: Some(Direction::Right),
-            exit: Some(Direction::Left),
-        });
         let new = dto::Cell::Snake(new_path);
-        assert_eq!(view.0.last().unwrap(), &(position.into(), old, new));
+        assert_eq!(view.0.last().unwrap(), &(position.into(), new));
     }
 
     #[test]
@@ -425,7 +411,7 @@ mod tests {
             },
         );
         let new = dto::Cell::Snake(Path { entry, exit: None });
-        assert_eq!(view.0, &[(position.into(), dto::Cell::Empty, new)]);
+        assert_eq!(view.0, &[(position.into(), new)]);
     }
 
     #[test]
@@ -441,12 +427,7 @@ mod tests {
             exit: Some(direction),
         };
         game_state.assert_is_snake_with_path(&position, new_path);
-        let old = dto::Cell::Snake(Path {
-            entry: Some(direction.opposite()),
-            exit: None,
-        });
-        let new = dto::Cell::Snake(new_path);
-        assert_eq!(view.0, &[(position.into(), old, new)]);
+        assert_eq!(view.0, &[(position.into(), dto::Cell::Snake(new_path))]);
     }
 
     #[test]
@@ -457,10 +438,7 @@ mod tests {
         let mut game_state = setup_loosable_board(&mut controller, &mut view);
         assert!(game_state.insert_food().is_ok());
         game_state.assert_is_foods(&position, 0);
-        assert_eq!(
-            view.0,
-            &[(position.into(), dto::Cell::Empty, dto::Cell::Foods)]
-        );
+        assert_eq!(view.0, &[(position.into(), dto::Cell::Foods)]);
     }
 }
 
