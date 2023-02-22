@@ -11,7 +11,6 @@ use super::{
 
 // TODO: replace `view` with subscription model
 // TODO: some testing for `iterate_turn` is redundant
-// TODO: move `move_in` to position with `State` generic
 
 #[derive(Debug)]
 pub struct MaxFoods;
@@ -49,13 +48,9 @@ impl<'a, const N_ROWS: usize, const N_COLS: usize> GameState<'a, N_ROWS, N_COLS>
         }
     }
 
-    fn get_next_head(&self, direction: &Direction) -> Position {
-        self.state.board.move_in(self.get_last_head(), direction)
-    }
-
     pub fn iterate_turn(&mut self) -> dto::Status {
         let direction = self.controller.get_direction();
-        let next_head = self.get_next_head(&direction);
+        let next_head = self.state.get_next_head(&direction);
         match self.state.board.at(&next_head) {
             Cell::Empty(_) => {
                 self.remove_last_tail();
@@ -243,15 +238,6 @@ mod tests {
     }
 
     #[test]
-    pub fn get_next_head() {
-        let options = Options::<3, 3>::with_seed(1, 0);
-        let mut controller = MockController(Direction::Right);
-        let mut view = MockView::default();
-        let game_state = options.build(&mut controller, &mut view).unwrap();
-        assert_eq!(game_state.get_next_head(&Direction::Right), Position(1, 2));
-    }
-
-    #[test]
     pub fn get_last_head() {
         let options = Options::<3, 3>::with_seed(1, 0);
         let mut controller = MockController(Direction::Right);
@@ -400,7 +386,7 @@ mod tests {
         let mut controller = MockController(Direction::Right);
         let mut view = MockView::default();
         let mut game_state = setup_loosable_board(&mut controller, &mut view);
-        let next_head = game_state.get_next_head(&Direction::Right);
+        let next_head = game_state.state.get_next_head(&Direction::Right);
         let entry = Some(Direction::Left);
         game_state.insert_snake_head(next_head, entry);
         game_state.assert_is_snake_with_path(

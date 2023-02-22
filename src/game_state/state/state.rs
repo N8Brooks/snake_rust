@@ -36,6 +36,11 @@ impl<const N_ROWS: usize, const N_COLS: usize> State<N_ROWS, N_COLS> {
             dto::Status::Ongoing
         }
     }
+
+    pub fn get_next_head(&self, direction: &Direction) -> Position {
+        let head = self.snake.front().expect("snake head");
+        self.board.move_in(head, direction)
+    }
 }
 
 #[cfg(test)]
@@ -44,7 +49,7 @@ mod tests {
 
     use super::*;
 
-    const BOARD: [[Cell; 3]; 2] = [
+    const MOCK_BOARD: [[Cell; 3]; 2] = [
         [
             Cell::Snake(Path {
                 entry: Some(Direction::Right),
@@ -72,6 +77,12 @@ mod tests {
         ],
     ];
 
+    fn get_mock_state() -> State<2, 3> {
+        let rng = MockSeeder(0).get_rng();
+        let board = Board::new(MOCK_BOARD);
+        State::new(board, rng)
+    }
+
     #[test]
     fn check_is_won_status_true() {
         let direction = Direction::Right;
@@ -95,15 +106,16 @@ mod tests {
 
     #[test]
     fn check_is_won_status_false() {
-        let board = Board::new([[
-            Cell::Snake(Path {
-                entry: None,
-                exit: None,
-            }),
-            Cell::Empty(0),
-        ]]);
-        let rng = MockSeeder(0).get_rng();
-        let state = State::new(board, rng);
-        assert_eq!(state.check_is_won_status(), dto::Status::Ongoing);
+        let state = get_mock_state();
+        let status = state.check_is_won_status();
+        assert_eq!(status, dto::Status::Ongoing);
+    }
+
+    #[test]
+    fn get_next_head() {
+        let state = get_mock_state();
+        let direction = Direction::Right;
+        let head = state.get_next_head(&direction);
+        assert_eq!(head, Position(1, 2));
     }
 }

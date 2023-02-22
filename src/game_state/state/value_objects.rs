@@ -99,7 +99,7 @@ impl From<Position> for dto::Position {
 
 #[cfg(test)]
 mod position_tests {
-    use super::Position;
+    use super::*;
     use crate::data_transfer_objects::Position as DtoPosition;
 
     #[test]
