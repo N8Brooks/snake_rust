@@ -32,23 +32,37 @@ impl<const N_ROWS: usize, const N_COLS: usize> State<N_ROWS, N_COLS> {
         }
     }
 
-    pub fn is_valid(&self) {
+    pub fn is_valid(&self) -> bool {
+        // A valid `State`
+        // * All `Position`s in `empty`, `foods`, and `snake` are unique and have a count of
+        //   `N_ROWS * N_COLS`.
+        // * `self.at(empty[i]) == Cell::Empty(i)` for each `i in 0..empty.len()`
+        // * `self.at(foods[i]) == Cell::Foods(i)` for each `i in 0..foods.len()`
+        // * `self.at(snake[i]) == Cell::Snake { .. }` for each  `i in 0..snake.len()`
+        // * The snake itself is valid by having exactly one head and tail that lead to each
+        // other.
         todo!()
     }
 
-    fn is_board_valid(&self) {
+    fn is_board_valid(&self) -> bool {
         todo!()
     }
 
-    fn is_empty_valid(&self) {
+    fn is_empty_valid(&self) -> bool {
+        self.empty
+            .iter()
+            .enumerate()
+            .all(|(i, position)| match self.board.at(position) {
+                Cell::Empty(j) => i == j,
+                _ => false,
+            })
+    }
+
+    fn is_foods_valid(&self) -> bool {
         todo!()
     }
 
-    fn is_foods_valid(&self) {
-        todo!()
-    }
-
-    fn is_snake_valid(&self) {
+    fn is_snake_valid(&self) -> bool {
         todo!()
     }
 
@@ -136,6 +150,40 @@ mod tests {
         let rng = MockSeeder(0).get_rng();
         State::new(board, rng)
     }
+
+    // #[test]
+    // fn is_valid_true() {
+    //     let state = get_mock_state();
+    //     assert!(state.is_valid());
+    // }
+
+    #[test]
+    fn is_empty_valid_false() {
+        let board = Board::new([[
+            Cell::Snake(Path {
+                entry: None,
+                exit: None,
+            }),
+            Cell::Empty(1),
+        ]]);
+        let empty = board.get_empty();
+        let foods = board.get_foods();
+        let snake = board.get_snake();
+        let state = State {
+            board,
+            empty,
+            foods,
+            snake,
+            rng: MockSeeder(0).get_rng(),
+        };
+        assert!(!state.is_empty_valid());
+    }
+
+    // #[test]
+    // fn is_foods_valid_false() {}
+
+    // #[test]
+    // fn is_snake_valid_false() {}
 
     #[test]
     fn check_is_won_status_true() {
