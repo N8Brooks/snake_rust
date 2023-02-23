@@ -59,11 +59,19 @@ impl<const N_ROWS: usize, const N_COLS: usize> State<N_ROWS, N_COLS> {
     }
 
     fn is_foods_valid(&self) -> bool {
-        todo!()
+        self.foods
+            .iter()
+            .enumerate()
+            .all(|(i, position)| match self.board.at(position) {
+                Cell::Foods(j) => i == j,
+                _ => false,
+            })
     }
 
     fn is_snake_valid(&self) -> bool {
-        todo!()
+        self.snake
+            .iter()
+            .all(|position| matches!(self.board.at(position), Cell::Snake { .. }))
     }
 
     pub fn check_is_won_status(&self) -> dto::Status {
@@ -179,11 +187,49 @@ mod tests {
         assert!(!state.is_empty_valid());
     }
 
-    // #[test]
-    // fn is_foods_valid_false() {}
+    #[test]
+    fn is_foods_valid_false() {
+        let board = Board::new([[
+            Cell::Snake(Path {
+                entry: None,
+                exit: None,
+            }),
+            Cell::Foods(0),
+        ]]);
+        let empty = board.get_empty();
+        let foods = vec![Position(0, 0)];
+        let snake = board.get_snake();
+        let state = State {
+            board,
+            empty,
+            foods,
+            snake,
+            rng: MockSeeder(0).get_rng(),
+        };
+        assert!(!state.is_foods_valid());
+    }
 
-    // #[test]
-    // fn is_snake_valid_false() {}
+    #[test]
+    fn is_snake_valid_false() {
+        let board = Board::new([[
+            Cell::Snake(Path {
+                entry: None,
+                exit: None,
+            }),
+            Cell::Empty(0),
+        ]]);
+        let empty = board.get_empty();
+        let foods = board.get_foods();
+        let snake = VecDeque::from([Position(0, 1)]);
+        let state = State {
+            board,
+            empty,
+            foods,
+            snake,
+            rng: MockSeeder(0).get_rng(),
+        };
+        assert!(!state.is_snake_valid());
+    }
 
     #[test]
     fn check_is_won_status_true() {

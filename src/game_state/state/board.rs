@@ -4,6 +4,8 @@ use crate::data_transfer_objects as _dto; // Limited usage in `from`
 
 use super::value_objects::*;
 
+// TODO: snake assertions
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Board<const N_ROWS: usize, const N_COLS: usize>([[Cell; N_COLS]; N_ROWS]);
 
